@@ -1,0 +1,160 @@
+// Solution: Fixed value extraction and event handling
+HANDLE_REQUIREMENT_HAIRCUT_UPDATE: (event) => {
+  console.log('=== REQUIREMENT HAIRCUT UPDATE CALLED ===');
+  console.log('Event object:', event);
+  
+  // Get the input element directly from the event
+  let inputElement = event?.target;
+  console.log('Input element:', inputElement);
+  
+  let clone = cloneObject(this.state.config);
+  let requirementHaircutValue;
+  let formData = Object.assign({}, this.props.data),
+    compositeProfile = Object.assign({}, formData.compositeProfile),
+    legalAgreement = Object.assign({}, compositeProfile.legalAgreement),
+    attributes = Object.assign({}, legalAgreement.attributes);
+
+  // IMPROVED: Better value extraction logic
+  if (inputElement && inputElement.value !== undefined) {
+    requirementHaircutValue = inputElement.value;
+    console.log('Got value from input element:', requirementHaircutValue);
+  } else {
+    // Fallback: get from form config
+    clone.layout.find(x => x.refKey === 'parameters').data.map(x => {
+      x.column.map(form => {
+        if (form.title === 'Requirement Haircut/Multiplier') {
+          requirementHaircutValue = form.value;
+          console.log('Got value from form config:', requirementHaircutValue);
+        }
+      });
+    });
+  }
+  
+  console.log('Final extracted value:', requirementHaircutValue);
+
+  // Process the requirement haircut value according to business rules (inline logic)
+  let processedHaircutValue;
+  
+  console.log('Processing value:', requirementHaircutValue);
+  
+  // Handle null, undefined, or empty string cases
+  if (requirementHaircutValue === null || requirementHaircutValue === undefined || requirementHaircutValue === '' || requirementHaircutValue === 'null') {
+    processedHaircutValue = 1;
+    console.log('Empty value converted to 1');
+  } else {
+    // Convert to string and clean common paste issues
+    let cleanValue = String(requirementHaircutValue)
+      .trim()
+      .replace(/,/g, '')
+      .replace(/[$%]/g, '');
+    
+    console.log('Cleaned value:', cleanValue);
+    
+    // Convert to numeric value
+    let numericValue = parseFloat(cleanValue);
+    console.log('Numeric value:', numericValue);
+    
+    // Handle invalid numeric input (NaN)
+    if (isNaN(numericValue)) {
+      processedHaircutValue = 1;
+      console.log('Invalid input, converted to 1');
+    }
+    // Business rule: treat 0 as blank and convert to 1
+    else if (numericValue === 0) {
+      processedHaircutValue = 1;
+      console.log('Zero converted to 1');
+    }
+    // Handle negative values
+    else if (numericValue < 0) {
+      processedHaircutValue = 1;
+      console.log('Negative converted to 1');
+    }
+    // KEY REQUIREMENT: Cap values over 10 to exactly 10
+    else if (numericValue > 10) {
+      processedHaircutValue = 10;
+      console.log('Value over 10, capped to 10. Original:', numericValue, 'New:', processedHaircutValue);
+    }
+    // Return the decimal value as-is if within valid range
+    else {
+      processedHaircutValue = numericValue;
+      console.log('Valid value accepted:', processedHaircutValue);
+    }
+  }
+
+  console.log('Final processed value:', processedHaircutValue);
+
+  // CRITICAL: Update the input element FIRST before any other updates
+  if (inputElement) {
+    console.log('Input element before update - value:', inputElement.value);
+    inputElement.value = processedHaircutValue;
+    inputElement.setAttribute('value', processedHaircutValue);
+    console.log('Input element after update - value:', inputElement.value);
+  } else {
+    console.log('No input element found - trying to find by selector');
+    // Fallback: find the input field manually
+    try {
+      const foundInput = document.querySelector('input[placeholder*="Enter value"]') ||
+                        document.querySelector('input[type="number"][step="0.01"]') ||
+                        document.querySelector('input[min="0"][max="10"]');
+      
+      if (foundInput) {
+        foundInput.value = processedHaircutValue;
+        foundInput.setAttribute('value', processedHaircutValue);
+        console.log('Updated input field via selector to:', processedHaircutValue);
+      } else {
+        console.log('Could not find input field to update');
+      }
+    } catch (error) {
+      console.log('Error finding input field:', error);
+    }
+  }
+
+  // Update form configuration
+  let snapshot = clone.layout.find(x => x.refKey === 'parameters').data.map(x => {
+    x.column.map(form => {
+      if (form.title === 'Requirement Haircut/Multiplier') {
+        form.value = processedHaircutValue;
+        form.source = 'USER';
+        console.log('Form config updated to:', processedHaircutValue);
+      }
+    });
+    return x;
+  });
+
+  // Update data structure
+  attributes.requirementHairCut = processedHaircutValue;
+  legalAgreement.attributes = attributes;
+  compositeProfile.legalAgreement = legalAgreement;
+  formData.compositeProfile = compositeProfile;
+
+  console.log('Data structure updated. New attribute value:', attributes.requirementHairCut);
+
+  // Apply updates to parent component - FIXED PROP NAME
+  this.props.onFormUpdate(snapshot);
+  this.props.onCustFormUpdate(formData);
+
+  // Update component state
+  this.setState({config: clone, ready: false}, () => {
+    this.setState({ready: true}, () => {
+      // Double-check the input value after state update
+      setTimeout(() => {
+        const inputToCheck = inputElement || 
+                           document.querySelector('input[placeholder*="Enter value"]') ||
+                           document.querySelector('input[type="number"][step="0.01"]') ||
+                           document.querySelector('input[min="0"][max="10"]');
+        
+        if (inputToCheck) {
+          console.log('Post-state-update input value:', inputToCheck.value);
+          if (inputToCheck.value != processedHaircutValue) {
+            inputToCheck.value = processedHaircutValue;
+            inputToCheck.setAttribute('value', processedHaircutValue);
+            console.log('Input element corrected after state update to:', processedHaircutValue);
+          }
+        }
+      }, 50);
+    });
+    console.log('State updated successfully');
+  });
+  
+  console.log('=== REQUIREMENT HAIRCUT UPDATE COMPLETED ===');
+},
