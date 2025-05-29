@@ -1,1 +1,153 @@
-AK
+HANDLE_REQUIREMENT_HAIRCUT_UPDATE: (event) => {
+  let inputElement = event?.target;
+  let clone = cloneObject(this.state.config);
+  let requirementHaircutValue;
+  let formData = Object.assign({}, this.props.data),
+    compositeProfile = Object.assign({}, formData.compositeProfile),
+    legalAgreement = Object.assign({}, compositeProfile.legalAgreement),
+    attributes = Object.assign({}, legalAgreement.attributes);
+
+  if (inputElement && inputElement.value !== undefined) {
+    requirementHaircutValue = inputElement.value;
+  } else {
+    clone.layout.find(x => x.refKey === 'parameters').data.map(x => {
+      x.column.map(form => {
+        if (form.title === 'Requirement Haircut/Multiplier') {
+          requirementHaircutValue = form.value;
+        }
+      });
+    });
+  }
+
+  let processedHaircutValue;
+
+  if (requirementHaircutValue === null || requirementHaircutValue === undefined || requirementHaircutValue === '' || requirementHaircutValue === 'null') {
+    if (inputElement && inputElement === document.activeElement) {
+      processedHaircutValue = 1;
+    } else {
+      processedHaircutValue = '';
+    }
+  } else {
+    let cleanValue = String(requirementHaircutValue)
+      .trim()
+      .replace(/,/g, '')
+      .replace(/[$%]/g, '');
+    
+    let numericValue = parseFloat(cleanValue);
+    
+    if (isNaN(numericValue)) {
+      processedHaircutValue = 1;
+    }
+    else if (numericValue === 0) {
+      processedHaircutValue = 0;
+    }
+    else if (numericValue < 0) {
+      processedHaircutValue = 0;
+    }
+    else if (numericValue > 10) {
+      processedHaircutValue = 10;
+    }
+    else {
+      processedHaircutValue = numericValue;
+    }
+  }
+
+  if (inputElement) {
+    inputElement.value = processedHaircutValue;
+    inputElement.setAttribute('value', processedHaircutValue);
+  } else {
+    try {
+      const foundInput = document.querySelector('input[placeholder*="Enter value"]') ||
+                        document.querySelector('input[type="number"][step="0.01"]') ||
+                        document.querySelector('input[min="0"][max="10"]');
+      
+      if (foundInput) {
+        foundInput.value = processedHaircutValue;
+        foundInput.setAttribute('value', processedHaircutValue);
+      }
+    } catch (error) {
+      // Silently handle error
+    }
+  }
+
+  let snapshot = clone.layout.find(x => x.refKey === 'parameters').data.map(x => {
+    x.column.map(form => {
+      if (form.title === 'Requirement Haircut/Multiplier') {
+        form.value = processedHaircutValue;
+        form.source = 'USER';
+      }
+    });
+    return x;
+  });
+
+  attributes.requirementHairCut = processedHaircutValue;
+  legalAgreement.attributes = attributes;
+  compositeProfile.legalAgreement = legalAgreement;
+  formData.compositeProfile = compositeProfile;
+
+  this.props.onFormUpdate(snapshot);
+  this.props.onCustFormUpdate(formData);
+
+  this.setState({config: clone, ready: false}, () => {
+    this.setState({ready: true}, () => {
+      setTimeout(() => {
+        const inputToCheck = inputElement || 
+                           document.querySelector('input[placeholder*="Enter value"]') ||
+                           document.querySelector('input[type="number"][step="0.01"]') ||
+                           document.querySelector('input[min="0"][max="10"]');
+        
+        if (inputToCheck && inputToCheck.value != processedHaircutValue) {
+          inputToCheck.value = processedHaircutValue;
+          inputToCheck.setAttribute('value', processedHaircutValue);
+        }
+      }, 50);
+    });
+  });
+},
+
+HANDLE_REQUIREMENT_HAIRCUT_CHANGE: (event) => {
+  let inputElement = event?.target;
+  if (inputElement) {
+    let currentValue = parseFloat(inputElement.value);
+    if (!isNaN(currentValue) && currentValue < 0) {
+      inputElement.value = 0;
+    }
+    if (!isNaN(currentValue) && currentValue > 10) {
+      inputElement.value = 10;
+    }
+  }
+},
+
+HANDLE_REQUIREMENT_HAIRCUT_INPUT: (event) => {
+  let inputElement = event?.target;
+  if (inputElement) {
+    let currentValue = parseFloat(inputElement.value);
+    if (!isNaN(currentValue) && currentValue < 0) {
+      inputElement.value = 0;
+      event.preventDefault();
+    }
+    if (!isNaN(currentValue) && currentValue > 10) {
+      inputElement.value = 10;
+      event.preventDefault();
+    }
+  }
+},
+
+
+
+
+
+{
+  "title": "Requirement Haircut/Multiplier",
+  "bind": "compositeProfile.legalAgreement.attributes.requirementHairCut",
+  "type": "input",
+  "inputType": "number",
+  "min": 0,
+  "max": 10,
+  "step": 0.01,
+  "isUpdatedBlur": true,
+  "required": false,
+  "onBlur": "HANDLE_REQUIREMENT_HAIRCUT_UPDATE",
+  "onChange": "HANDLE_REQUIREMENT_HAIRCUT_CHANGE",
+  "onInput": "HANDLE_REQUIREMENT_HAIRCUT_INPUT"
+}
