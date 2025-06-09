@@ -1,1 +1,21 @@
-a
+ if (this.state.showXMProfile && this.props.appState.lob.toUpperCase() === 'XMARGIN') {
+        // Import your XM component
+        const XMProfileComponent = require('./subviews/xm/profile/index').default;
+        
+        return (
+            <XMProfileComponent 
+                profileData={this.state.selectedXMProfileData}
+                userInfo={this.props.userInfo}
+                appState={this.props.appState}
+                staticData={this.props[reducerkey].staticData || {}}
+                onBack={() => this.setState({
+                    showXMProfile: false,
+                    selectedXMProfileData: null,
+                    sidebarHide: false
+                })}
+                onCancel={this.onCancel}
+                onSave={this.onSave}
+                onSubmit={this.onSubmit}
+            />
+        );
+    }
