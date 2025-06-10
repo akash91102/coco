@@ -1,5 +1,1 @@
- if (lob.toUpperCase() === 'XM' || lob.toUpperCase() === 'XMARGIN') {
-                // Use the correct XMARGIN API endpoint
-                console.log('Using XMARGIN endpoint');
-                res = await api.get(`rest/read/xm/profile/rdo/${params}/001/LNFRequirements-Teams`);
-            }
+
