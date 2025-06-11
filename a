@@ -1,1 +1,773 @@
+import React, { Component, Fragment } from 'react';
+import autoBind from 'react-autobind';
+import { bindActionCreators } from 'redux';
+import { connect } from 'react-redux';
+import { fetchConfig } from './config/config';
+import axios from 'axios';
+import moment from 'moment';
 
+import {
+    configSetup,
+    formBind,
+    newFormBind,
+    tableEntryUpdate,
+    tableOnlySetup
+} from '../../../../../../javascript/config';
+
+import {
+    cloneObject,
+    Debouncer,
+    objectExists,
+    traverseFormToBindValue,
+    traverseObject,
+    traverseObjectAndInsert,
+    traverseObjectAndReturn,
+    updateObjectWithMatchingKeys
+} from '../../../../../../javascript/utility';
+
+import {
+    mixinCheckGlobalConditions,
+    mixinIsFormValid,
+    mixinToggleModal
+} from '../../../../../../javascript/mixins';
+
+import { DataGrid } from '@jpmuitk/data-grid';
+import { Button, Dialog, DialogActions, DialogContent, Icon, Spinner } from '@jpmuitk/components';
+
+import Buttons from '../../../../../Common/Buttons/Buttons';
+import Header from '../../../../../Common/Header/Header';
+import FormBuilder from '../../../../../Common/FormBuilder';
+import AmountGrid from '../../../../../Common/Amount/AmountGrid';
+import EligibleProducts from '../../../../../Common/EligibleProduct/EligibleProducts';
+
+import * as appStateAction from '../../../../../../actions/appStateAction';
+import configRest from '../../../../../../config/config';
+import { dropdownPresets } from '../../../../../../config/dropdownPresets';
+import { isReadWrite } from '../../../../../../javascript/entitlementUtils';
+import { inlineGetServiceCall } from '../../../../../../api/ApiUtils';
+import { MessageBox } from '../../../../../Common/messagebox';
+import { DCM, XMARGIN } from '../../../../../Common/constants';
+
+const debounce = new Debouncer();
+const key = 'xmProfileFields';
+let filteredData = null;
+let selectedRowIdx = null;
+
+class XMProfileFields extends Component {
+    constructor(props) {
+        super(props);
+
+        this.state = {
+            permissions: {
+                readonly: this.getPermission(props),
+                partialReadonly: this.getPermission(props),
+                enableDropDown: (DCM.toUpperCase() === props.appState?.lob?.toUpperCase()) ? !props.userInfo?.enableAMSProfile : true
+            },
+            config: null,
+            toggleState: true,
+            ready: true,
+            gridApi: {},
+            modal: {
+                disabled: null,
+                show: false,
+                header: {},
+                formdata: null,
+                onUpdate: () => {},
+                onSave: () => {}
+            },
+            resetFormFields: {
+                resetIfSelected: [{ field: 'frequency', value: '*' }],
+                resetExclude: ['frequency']
+            }
+        };
+
+        // Event bindings for form interactions
+        this.bindedEvents = {
+            // Profile Information Events
+            HANDLE_PROFILE_STATUS_UPDATE: (status) => {
+                this.updateProfileField('profileStatus', status);
+            },
+
+            HANDLE_AGREEMENT_UPDATE: (agreementData) => {
+                this.updateAgreementData(agreementData);
+            },
+
+            // Cross Product Margin Calc Events
+            HANDLE_TIER_UPDATE: (tierData) => {
+                this.updateTierConfiguration(tierData);
+            },
+
+            HANDLE_ADD_ON_TOGGLE: (addOnType, value) => {
+                this.updateAddOnConfiguration(addOnType, value);
+            },
+
+            HANDLE_HOUSE_MULTIPLIER_UPDATE: (multiplier) => {
+                this.updateHouseMultiplier(multiplier);
+            },
+
+            // Master Agreements Events
+            CREATE_NEW_MASTER_AGREEMENT: () => {
+                this.createNewMasterAgreement();
+            },
+
+            EDIT_MASTER_AGREEMENT: (agreementId) => {
+                this.editMasterAgreement(agreementId);
+            },
+
+            DELETE_MASTER_AGREEMENT: (agreementId) => {
+                this.deleteMasterAgreement(agreementId);
+            },
+
+            // Product Setup Events
+            HANDLE_PRODUCT_SETUP_UPDATE: (setupData) => {
+                this.updateProductSetup(setupData);
+            },
+
+            // Validation Events
+            VALIDATE_PROFILE_DATA: () => {
+                return this.validateProfileData();
+            },
+
+            // Conditional Rendering Events
+            IS_PROFILE_EDITABLE: () => {
+                return this.isProfileEditable();
+            },
+
+            IS_AGREEMENT_ACTIVE: () => {
+                return this.isAgreementActive();
+            },
+
+            // Tab Navigation Events
+            HANDLE_TAB_CHANGE: (tabId) => {
+                this.handleTabChange(tabId);
+            }
+        };
+
+        autoBind(this);
+
+        // Button configuration
+        this.buttons = this.state.permissions.readonly ? 
+            [
+                { title: 'Back', onclick: this.props.onBack || this.props.onCancel },
+                { title: 'Cancel', onclick: this.props.onCancel }
+            ] : 
+            [
+                { title: 'Back', onclick: this.props.onBack || this.props.onCancel },
+                { title: 'Cancel', onclick: this.props.onCancel },
+                { title: 'Save Draft', onclick: this.props.onSave, displayIf: this.isProfileNewOrActive.bind(this) },
+                { title: 'Submit', onclick: this.props.onSubmit, displayIf: this.isProfileNewOrActive.bind(this) },
+                { title: 'Deactivate', onclick: this.props.onDeactivate, displayIf: this.isProfileActive.bind(this) },
+                { title: 'Activate', onclick: this.props.onActivate, displayIf: this.isProfileInactive.bind(this) }
+            ];
+    }
+
+    // Permission method following the main component pattern
+    getPermission(props) {
+        // For XMARGIN, check if profile is read-only or user doesn't have write permissions
+        const profileReadOnly = props.data?.profileReadOnly || props.profileData?.profileReadOnly || false;
+        const userHasWriteAccess = isReadWrite(props.userInfo, 'ROLE_AGENCY_UI_READ_WRITE');
+        return profileReadOnly || !userHasWriteAccess;
+    }
+
+    // Profile status check methods - updated to use correct data source
+    isProfileNewOrActive() {
+        const data = this.props.data || this.props.profileData || {};
+        const profilePresent = objectExists(data, 'compositeProfile.legalAgreement.attributes.status');
+        const status = data.compositeProfile?.legalAgreement?.attributes?.status;
+        return !profilePresent || status === 'Live' || status === 'New';
+    }
+
+    isProfileActive() {
+        const data = this.props.data || this.props.profileData || {};
+        const profilePresent = objectExists(data, 'compositeProfile.legalAgreement.attributes.status');
+        const status = data.compositeProfile?.legalAgreement?.attributes?.status;
+        return profilePresent && status === 'Live';
+    }
+
+    isProfileInactive() {
+        const data = this.props.data || this.props.profileData || {};
+        const profilePresent = objectExists(data, 'compositeProfile.legalAgreement.attributes.status');
+        const status = data.compositeProfile?.legalAgreement?.attributes?.status;
+        return profilePresent && status === 'Inactive';
+    }
+
+    // Component lifecycle
+    componentDidMount() {
+        console.log('XM ProfileFields component mounted');
+        console.log('Profile data received from parent:', this.props.data);
+        console.log('Profile data (compatibility):', this.props.profileData);
+        
+        try {
+            const config = fetchConfig(this.props.appState?.lob || 'xm');
+            console.log('XM Config loaded:', config);
+            this.setup(config);
+        } catch (error) {
+            console.error('Error loading XM config:', error);
+            // Fallback config
+            const fallbackConfig = {
+                layout: [
+                    {
+                        refKey: "agreement",
+                        header: {
+                            title: "XM Profile Information"
+                        },
+                        type: "form",
+                        data: []
+                    }
+                ]
+            };
+            this.setup(fallbackConfig);
+        }
+    }
+
+    // Main setup method - updated to use props data
+    setup = (config) => {
+        // Use data from props (passed from main component via Redux)
+        let cloneData = this.props.data || this.props.profileData || {};
+        
+        console.log('Setting up XM Profile with data:', cloneData);
+        
+        // Initialize profile data structure if needed
+        this.initializeProfileData(cloneData);
+        
+        // Setup configuration
+        let configSetupVar = configSetup({
+            config,
+            formdata: cloneData,
+            staticData: this.props.staticData,
+            bindFunctions: this.bindedEvents
+        });
+        
+        this.setState({ config: configSetupVar });
+        
+        // Update parent if callback exists
+        if (this.props.onCustFormUpdate) {
+            this.props.onCustFormUpdate(cloneData);
+        }
+    };
+
+    // Initialize profile data structure - updated for API response structure
+    initializeProfileData = (data) => {
+        // Ensure the API response structure exists
+        if (!data.compositeProfile) {
+            data.compositeProfile = {};
+        }
+
+        if (!data.compositeProfile.legalAgreement) {
+            data.compositeProfile.legalAgreement = {
+                profileId: '',
+                version: 0,
+                updatedBy: '',
+                updatedAt: moment().format('YYYY-MM-DD HH:mm:ss.SSS'),
+                attributes: {}
+            };
+        }
+
+        // Initialize attributes based on your API response structure
+        if (!data.compositeProfile.legalAgreement.attributes) {
+            data.compositeProfile.legalAgreement.attributes = {
+                agreementType: '',
+                spn: '',
+                ecd: '',
+                tier: '',
+                tierVersion: '',
+                tierEffectiveDate: '',
+                addOn: '',
+                houseMultiplier: '',
+                status: 'New'
+            };
+        }
+
+        // Ensure other required structures exist
+        if (!data.compositeProfile.legalAgreement.attributes.masterAgreements) {
+            data.compositeProfile.legalAgreement.attributes.masterAgreements = [];
+        }
+    };
+
+    // Profile field update methods - updated for correct data structure
+    updateProfileField = (fieldName, value) => {
+        let clone = cloneObject(this.state.config);
+        let formData = this.props.data || this.props.profileData || {};
+
+        // Update the specific field in the correct structure
+        if (!formData.compositeProfile) formData.compositeProfile = {};
+        if (!formData.compositeProfile.legalAgreement) formData.compositeProfile.legalAgreement = {};
+        if (!formData.compositeProfile.legalAgreement.attributes) formData.compositeProfile.legalAgreement.attributes = {};
+
+        formData.compositeProfile.legalAgreement.attributes[fieldName] = value;
+        formData.compositeProfile.legalAgreement.updatedAt = moment().format('YYYY-MM-DD HH:mm:ss.SSS');
+
+        this.updateFormAndData(clone, formData);
+    };
+
+    updateAgreementData = (agreementData) => {
+        let formData = this.props.data || this.props.profileData || {};
+        
+        // Update agreement information in the correct structure
+        if (!formData.compositeProfile) formData.compositeProfile = {};
+        if (!formData.compositeProfile.legalAgreement) formData.compositeProfile.legalAgreement = {};
+        if (!formData.compositeProfile.legalAgreement.attributes) formData.compositeProfile.legalAgreement.attributes = {};
+
+        Object.assign(formData.compositeProfile.legalAgreement.attributes, agreementData);
+        formData.compositeProfile.legalAgreement.updatedAt = moment().format('YYYY-MM-DD HH:mm:ss.SSS');
+
+        if (this.props.onCustFormUpdate) {
+            this.props.onCustFormUpdate(formData);
+        }
+    };
+
+    updateTierConfiguration = (tierData) => {
+        let formData = this.props.data || this.props.profileData || {};
+        
+        // Update tier configuration
+        if (!formData.compositeProfile) formData.compositeProfile = {};
+        if (!formData.compositeProfile.legalAgreement) formData.compositeProfile.legalAgreement = {};
+        if (!formData.compositeProfile.legalAgreement.attributes) formData.compositeProfile.legalAgreement.attributes = {};
+
+        Object.assign(formData.compositeProfile.legalAgreement.attributes, tierData);
+        
+        if (this.props.onCustFormUpdate) {
+            this.props.onCustFormUpdate(formData);
+        }
+    };
+
+    updateAddOnConfiguration = (addOnType, value) => {
+        let formData = this.props.data || this.props.profileData || {};
+        
+        // Update add-on configuration
+        if (!formData.compositeProfile?.legalAgreement?.attributes) {
+            this.initializeProfileData(formData);
+        }
+
+        formData.compositeProfile.legalAgreement.attributes[addOnType] = value;
+        
+        if (this.props.onCustFormUpdate) {
+            this.props.onCustFormUpdate(formData);
+        }
+    };
+
+    updateHouseMultiplier = (multiplier) => {
+        let formData = this.props.data || this.props.profileData || {};
+        
+        // Update house multiplier
+        if (!formData.compositeProfile?.legalAgreement?.attributes) {
+            this.initializeProfileData(formData);
+        }
+
+        formData.compositeProfile.legalAgreement.attributes.houseMultiplier = multiplier;
+        
+        if (this.props.onCustFormUpdate) {
+            this.props.onCustFormUpdate(formData);
+        }
+    };
+
+    updateProductSetup = (setupData) => {
+        let formData = this.props.data || this.props.profileData || {};
+        
+        // Update product setup
+        if (!formData.compositeProfile?.legalAgreement?.attributes) {
+            this.initializeProfileData(formData);
+        }
+
+        Object.assign(formData.compositeProfile.legalAgreement.attributes, setupData);
+        
+        if (this.props.onCustFormUpdate) {
+            this.props.onCustFormUpdate(formData);
+        }
+    };
+
+    // Master agreement management - updated for correct data structure
+    createNewMasterAgreement = () => {
+        const data = this.props.data || this.props.profileData || {};
+        let newEntry = null;
+        const prop = 'compositeProfile.legalAgreement.attributes.masterAgreements';
+
+        selectedRowIdx = null;
+
+        this.toggleModal({
+            state: true,
+            header: { title: 'Create New Master Agreement' },
+            formdata: newFormBind({ formdata: this.state.config.create?.newMasterAgreement }),
+            onUpdate: (newdata) => {
+                newEntry = tableEntryUpdate({ newdata, markSource: true });
+            },
+            onSave: () => {
+                let exists = false;
+                let formData = cloneObject(data);
+                
+                if (!formData.compositeProfile?.legalAgreement?.attributes?.masterAgreements) {
+                    this.initializeProfileData(formData);
+                }
+
+                // Check for duplicates
+                formData.compositeProfile.legalAgreement.attributes.masterAgreements.forEach(item => {
+                    if (item.agreementId === newEntry.agreementId) {
+                        exists = true;
+                        MessageBox.error('Validation Error', 'Agreement ID already exists.', 500);
+                    }
+                });
+
+                if (!exists) {
+                    formData.compositeProfile.legalAgreement.attributes.masterAgreements.push(newEntry);
+                    this.toggleModal(false);
+                    if (this.props.onCustFormUpdate) {
+                        this.props.onCustFormUpdate(formData);
+                    }
+                    this.gridBindEvents(this.state.gridApi["masterAgreements"]);
+                }
+            }
+        });
+    };
+
+    editMasterAgreement = (agreementId) => {
+        console.log('Editing master agreement:', agreementId);
+    };
+
+    deleteMasterAgreement = (agreementId) => {
+        console.log('Deleting master agreement:', agreementId);
+    };
+
+    // Tab navigation
+    handleTabChange = (tabId) => {
+        this.setState({ activeTab: tabId });
+        
+        if (this.props.onTabChange) {
+            this.props.onTabChange(tabId);
+        }
+    };
+
+    // Validation methods - updated for correct data structure
+    validateProfileData = () => {
+        const data = this.props.data || this.props.profileData || {};
+        let isValid = true;
+        let errors = [];
+
+        const profileId = data.compositeProfile?.legalAgreement?.profileId;
+        const agreementType = data.compositeProfile?.legalAgreement?.attributes?.agreementType;
+
+        if (!profileId) {
+            errors.push('Profile ID is required');
+            isValid = false;
+        }
+
+        if (!agreementType) {
+            errors.push('Agreement Type is required');
+            isValid = false;
+        }
+
+        if (!isValid) {
+            MessageBox.error('Validation Error', errors.join('\n'), 500);
+        }
+
+        return isValid;
+    };
+
+    isProfileEditable = () => {
+        return !this.state.permissions.readonly && this.isProfileNewOrActive();
+    };
+
+    isAgreementActive = () => {
+        const data = this.props.data || this.props.profileData || {};
+        const status = data.compositeProfile?.legalAgreement?.attributes?.status;
+        return status === 'Live';
+    };
+
+    // Grid event handlers
+    onGridReady = ({ e, refKey }) => {
+        const { gridApi } = this.state;
+        const { api } = e;
+
+        gridApi[refKey] = api;
+
+        this.setState({ gridApi }, () => {
+            api.sizeColumnsToFit();
+            this.gridBindEvents({ api: gridApi[refKey] });
+        });
+    };
+
+    gridBindEvents = ({ api }) => {
+        setTimeout(() => {
+            document.querySelectorAll('.masterAgreementRemoveBtn').forEach((ele, index) => {
+                ele.classList.remove("masterAgreementRemoveBtn");
+                
+                ele.addEventListener("click", () => {
+                    const { gridApi } = this.state;
+                    let rowData = [];
+                    const gridApi_ma = gridApi['masterAgreements'];
+
+                    gridApi_ma.forEachNode((rowNode, i) => {
+                        if (i !== index) {
+                            rowData.push(rowNode.data);
+                        }
+                    });
+                    
+                    gridApi_ma.setRowData(rowData);
+
+                    let formData = this.props.data || this.props.profileData || {};
+                    if (formData.compositeProfile?.legalAgreement?.attributes?.masterAgreements) {
+                        formData.compositeProfile.legalAgreement.attributes.masterAgreements.splice(index, 1);
+                    }
+                    if (this.props.onCustFormUpdate) {
+                        this.props.onCustFormUpdate(formData);
+                    }
+
+                    this.gridBindEvents({ api: gridApi_ma });
+                });
+            });
+        });
+    };
+
+    onCellClicked = ({ e, createKey = null, markSource = null, bind, refKey }) => {
+        let { colDef, rowIndex } = e;
+        const { actions = null, renderAsLink = null, cellRenderer } = colDef;
+        selectedRowIdx = rowIndex;
+
+        if (cellRenderer === 'removeItem') return;
+
+        if ((actions === null && renderAsLink === null) && !!createKey) {
+            const data = this.props.data || this.props.profileData || {};
+            let currentEntry;
+            let prop = bind;
+
+            let obj = !!data ? cloneObject(data) : {};
+            let arr = traverseObjectAndReturn({ obj, string: prop });
+
+            if (this.state.config.create && this.state.config.create[createKey]) {
+                const formdata = formBind({
+                    formdata: this.state.config.create[createKey],
+                    data: arr[rowIndex],
+                    staticData: this.props.staticData
+                });
+
+                this.toggleModal({
+                    state: true,
+                    header: { title: 'Edit' },
+                    formdata,
+                    onUpdate: (newdata) => {
+                        currentEntry = tableEntryUpdate({ newdata, markSource });
+                    },
+                    onSave: () => {
+                        updateObjectWithMatchingKeys({ obj: arr[rowIndex], data: currentEntry });
+                        if (this.props.onCustFormUpdate) {
+                            this.props.onCustFormUpdate(data);
+                        }
+                        this.gridBindEvents({ api: this.state.gridApi[refKey] });
+                        this.toggleModal(false);
+                    }
+                });
+            }
+        }
+    };
+
+    // Helper methods
+    updateFormAndData = (config, formData) => {
+        if (this.props.onFormUpdate) {
+            this.props.onFormUpdate(config);
+        }
+        if (this.props.onCustFormUpdate) {
+            this.props.onCustFormUpdate(formData);
+        }
+        
+        this.setState({ config, ready: false }, () => {
+            this.setState({ ready: true });
+        });
+    };
+
+    // Mixin methods
+    isFormValid = (props) => {
+        mixinIsFormValid({ ...props, _this: this });
+    };
+
+    toggleModal = (props) => {
+        mixinToggleModal({ ...props, _this: this });
+    };
+
+    checkGlobalConditions = (renderIf = null) => {
+        return mixinCheckGlobalConditions({ renderIf, _this: this });
+    };
+
+    render() {
+        const { 
+            buttons, 
+            bindedEvents, 
+            checkGlobalConditions, 
+            toggleModal, 
+            onGridReady, 
+            onCellClicked, 
+            isFormValid 
+        } = this;
+        
+        const { ready, modal, config, permissions } = this.state;
+        const { onFormUpdate, onCustFormUpdate, staticData } = this.props;
+        
+        // Use data from props (passed from main component)
+        let formData = this.props.data || this.props.profileData || {};
+
+        return (
+            <div style={{ marginTop: '10px', marginBottom: '10px' }}>
+                {/* Header with Back Button */}
+                <div style={{ marginBottom: '20px', borderBottom: '2px solid #e0e0e0', paddingBottom: '10px' }}>
+                    <h2 style={{ margin: '0', color: '#333' }}>XM Profile Details</h2>
+                    {formData.compositeProfile?.legalAgreement && (
+                        <p style={{ margin: '5px 0 0 0', color: '#666' }}>
+                            Profile ID: {formData.compositeProfile.legalAgreement.profileId} | 
+                            Status: {formData.compositeProfile.legalAgreement.attributes?.status || 'Unknown'}
+                        </p>
+                    )}
+                </div>
+
+                {!!config && ready ? (
+                    <>
+                        {/* Loop through JSON config layout */}
+                        {config.layout.map((x, i) => {
+                            const { 
+                                refKey, 
+                                createKey, 
+                                header, 
+                                type, 
+                                data, 
+                                columnDefs, 
+                                renderIf, 
+                                markSource, 
+                                bind, 
+                                rowClassRules 
+                            } = x;
+
+                            return checkGlobalConditions(renderIf) ? (
+                                <div 
+                                    className={
+                                        !!type && (type === 'amount' || type === 'eligibleProduct') 
+                                            ? 'rating-container' 
+                                            : 'dt-container'
+                                    } 
+                                    key={i}
+                                >
+                                    {!!header ? (
+                                        <Header 
+                                            {...header} 
+                                            bindedEvents={bindedEvents} 
+                                            permissions={permissions} 
+                                        />
+                                    ) : null}
+
+                                    {!!type && type === 'form' ? (
+                                        <FormBuilder 
+                                            data={data} 
+                                            onFormUpdate={onFormUpdate} 
+                                            bindedEvents={bindedEvents} 
+                                            permissions={permissions} 
+                                            staticData={staticData} 
+                                        />
+                                    ) : null}
+
+                                    {!!type && type === 'datatable' ? (
+                                        <DataGrid
+                                            suppressRowClickSelection={true}
+                                            containerProps={{ style: { height: '200px' } }}
+                                            rowStripes
+                                            columnDefs={columnDefs}
+                                            rowClassRules={rowClassRules}
+                                            rowData={traverseFormToBindValue({ formData, bind })}
+                                            onCellClicked={e => { onCellClicked({ e, createKey, markSource, refKey, bind }) }}
+                                            onGridReady={(e) => { onGridReady({ e, refKey }) }}
+                                            refKey={refKey}
+                                        />
+                                    ) : null}
+
+                                    {!!type && type === 'amount' ? (
+                                        <AmountGrid
+                                            rowClassRules={rowClassRules}
+                                            bind={bind}
+                                            formData={formData}
+                                            onCustFormUpdate={onCustFormUpdate}
+                                            config={this.state.config}
+                                            readonly={permissions.readonly}
+                                            isMultiCurrencyEnabled={true}
+                                            optionCurrency={dropdownPresets.CURRENCY}
+                                            refKey={refKey}
+                                        />
+                                    ) : null}
+
+                                    {!!type && type === 'eligibleProduct' ? (
+                                        <EligibleProducts
+                                            bind={bind}
+                                            formData={formData}
+                                            onCustFormUpdate={onCustFormUpdate}
+                                            bindedEvents={bindedEvents}
+                                            config={this.state.config}
+                                            refKey={refKey}
+                                        />
+                                    ) : null}
+                                </div>
+                            ) : null;
+                        })}
+
+                        {/* Modal for adding/editing entries */}
+                        <Dialog
+                            onEntered={() => {}}
+                            open={modal.show}
+                            onClick={() => {}}
+                            onClose={() => { toggleModal(false) }}
+                        >
+                            <div>
+                                {!!modal.show ? (
+                                    <DialogContent>
+                                        <div className='dt-container'>
+                                            <Header {...modal.header} permissions={permissions} />
+                                            <FormBuilder 
+                                                data={this.state.modal.formdata?.data || []} 
+                                                onFormUpdate={modal.onUpdate} 
+                                                isFormValid={isFormValid} 
+                                                permissions={permissions} 
+                                                staticData={staticData} 
+                                            />
+                                        </div>
+                                    </DialogContent>
+                                ) : null}
+
+                                <DialogActions>
+                                    {!permissions.readonly ? (
+                                        <Button 
+                                            variant={'cta'} 
+                                            disabled={modal.disabled} 
+                                            onClick={modal.onSave}
+                                        >
+                                            Save
+                                        </Button>
+                                    ) : null}
+                                    <Button 
+                                        variant={'cta'} 
+                                        onClick={() => { toggleModal(false) }}
+                                    >
+                                        Close
+                                    </Button>
+                                </DialogActions>
+                            </div>
+                        </Dialog>
+
+                        <Buttons data={buttons} />
+                    </>
+                ) : (
+                    <div style={{ padding: '20px', textAlign: 'center' }}>
+                        <Spinner />
+                        <p>Loading XM Profile configuration...</p>
+                    </div>
+                )}
+            </div>
+        );
+    }
+}
+
+// Redux connection
+const mapStateToProps = state => {
+    const { appState } = state;
+    return { appState };
+};
+
+const mapDispatchToProps = dispatch => {
+    return {
+        appStateAction: bindActionCreators(appStateAction, dispatch)
+    };
+};
+
+export default connect(mapStateToProps, mapDispatchToProps)(XMProfileFields);
