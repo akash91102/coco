@@ -10,10 +10,10 @@
             "data": [
                 {
                     "column": [
-                        { "title": "Profile ID", "bind": "compositeProfile.legalAgreement.profileId", "type": "input", "markSource": false },
-                        { "title": "Agreement No", "bind": "compositeProfile.legalAgreement.profileId", "type": "input",  "required": true, "markSource": false},
+                        { "title": "Profile ID", "bind": "compositeProfile.legalAgreement.profileId", "type": "input", "readonly": true, "markSource": false },
+                        { "title": "Agreement No", "bind": "compositeProfile.legalAgreement.profileId", "type": "input", "required": true, "markSource": false},
                         { "title": "Agreement Type", "bind": "compositeProfile.legalAgreement.attributes.agreementType", "type": "dropdown", "options": ["ISDA", "FEMA", "PESA", "CLEARING", "GIMRA", "OTCIC"]},
-                        { "title": "Updated By", "bind": "compositeProfile.legalAgreement.updatedBy", "type": "input" }
+                        { "title": "Updated By", "bind": "compositeProfile.legalAgreement.updatedBy", "type": "input"}
                     ]
                 },
                 {
@@ -38,42 +38,26 @@
                     "column": [
                         { "title": "Tier", "bind": "compositeProfile.legalAgreement.attributes.tier", "type": "input"},
                         { "title": "Tier Version", "bind": "compositeProfile.legalAgreement.attributes.tierVersion", "type": "input"},
-                        { "title": "Tier Effective Date", "bind": "compositeProfile.legalAgreement.attributes.tierEffectiveDate", "type": "input"}
-                    ]
-                },
-                {
-                    "column": [
+                        { "title": "Tier Effective Date", "bind": "compositeProfile.legalAgreement.attributes.tierEffectiveDate", "type": "input"},
                         { "title": "House Multiplier", "bind": "compositeProfile.legalAgreement.attributes.houseMultiplier", "type": "input"}
                     ]
-                }
-            ]
-        },
-        {
-            "refKey": "addOnSection",
-            "header": {
-                "title": "Add On"
-            },
-            "type": "form",
-            "data": [
+                },
                 {
                     "column": [
                         { 
                             "title": "Liquidity", 
                             "bind": "compositeProfile.legalAgreement.attributes.addOnLiquidity", 
-                            "type": "checkbox",
-                            "options": [{"label": "Liquidity", "value": true}]
+                            "type": "checkbox"
                         },
                         { 
                             "title": "Tenor", 
                             "bind": "compositeProfile.legalAgreement.attributes.addOnTenor", 
-                            "type": "checkbox",
-                            "options": [{"label": "Tenor", "value": true}]
+                            "type": "checkbox"
                         },
                         { 
                             "title": "FX", 
                             "bind": "compositeProfile.legalAgreement.attributes.addOnFX", 
-                            "type": "checkbox",
-                            "options": [{"label": "FX", "value": true}]
+                            "type": "checkbox"
                         }
                     ]
                 }
