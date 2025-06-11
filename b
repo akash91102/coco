@@ -1,39 +1,135 @@
-// Replace the XMARGIN section in your main component with this:
-
-{ view === 'form' && (appState.lob === XMARGIN) &&
-  <Fragment>
-    {this.renderOnTab(formTab, subview)}
-    {subview === 'xmProfileParameters' ? (
-      <div style={{width: '100%'}}>
-        <XMProileParameters 
-          userInfo={this.props.userInfo}
-          onCancel={onCancel} 
-          onSave={onSave}  
-          onSubmit={onSubmit}
-          onFormUpdate={onFormUpdate}
-          onTableUpdate={onTableUpdate}
-          data={entryData}                    // ← This passes the API data!
-          onCustFormUpdate={onCustFormUpdate} // ← This handles form updates!
-          onTerminate={onTerminate}
-          onActivate={onActivate}
-          staticData={staticData}
-          appState={appState}                 // ← Added for LOB info
-        />
-      </div>
-    ) : null}
-    {subview === 'xmMarginEntity' ? (
-      <div style={{width: '100%'}}>
-        {'APPLICATION INFO xmMarginEntity'} 
-      </div>
-    ) : null}
-    {subview === 'xmProduct' ? (
-      <div style={{width: '100%'}}>
-        {'APPLICATION INFO xmProduct'} 
-      </div>
-    ) : null}
-    {subview === 'xmStatement' ? (
-      <div style={{width: '100%'}}>
-        {'APPLICATION INFO xmStatement'} 
-      </div>
-    ) : null}
-  </Fragment>}
+{
+    "layout": [
+        {
+            "refKey": "agreement",
+            "header": {
+                "title": "Agreement",
+                "showSubTitle": true
+            },
+            "type": "form",
+            "data": [
+                {
+                    "column": [
+                        { "title": "Profile ID", "bind": "compositeProfile.legalAgreement.profileId", "type": "input", "markSource": false },
+                        { "title": "Agreement No", "bind": "compositeProfile.legalAgreement.profileId", "type": "input",  "required": true, "markSource": false},
+                        { "title": "Agreement Type", "bind": "compositeProfile.legalAgreement.attributes.agreementType", "type": "dropdown", "options": ["ISDA", "FEMA", "PESA", "CLEARING", "GIMRA", "OTCIC"]},
+                        { "title": "Updated By", "bind": "compositeProfile.legalAgreement.updatedBy", "type": "input" }
+                    ]
+                },
+                {
+                    "column": [
+                        { "title": "SPN", "bind": "compositeProfile.legalAgreement.attributes.spn", "type": "input"},
+                        { "title": "Status", "bind": "compositeProfile.legalAgreement.status", "type": "input"},
+                        { "title": "Version", "bind": "compositeProfile.legalAgreement.version", "type": "input"},
+                        { "title": "Updated At", "bind": "compositeProfile.legalAgreement.updatedAt", "type": "input"},
+                        { "title": "ECD", "bind": "compositeProfile.legalAgreement.attributes.ecd", "type": "input"}
+                    ]
+                }
+            ]
+        },
+        {
+            "refKey": "crossProductMarginCalc",
+            "header": {
+                "title": "Cross Product Margin Calc"
+            },
+            "type": "form",
+            "data": [
+                {
+                    "column": [
+                        { "title": "Tier", "bind": "compositeProfile.legalAgreement.attributes.tier", "type": "input"},
+                        { "title": "Tier Version", "bind": "compositeProfile.legalAgreement.attributes.tierVersion", "type": "input"},
+                        { "title": "Tier Effective Date", "bind": "compositeProfile.legalAgreement.attributes.tierEffectiveDate", "type": "input"}
+                    ]
+                },
+                {
+                    "column": [
+                        { "title": "House Multiplier", "bind": "compositeProfile.legalAgreement.attributes.houseMultiplier", "type": "input"}
+                    ]
+                }
+            ]
+        },
+        {
+            "refKey": "addOnSection",
+            "header": {
+                "title": "Add On"
+            },
+            "type": "form",
+            "data": [
+                {
+                    "column": [
+                        { 
+                            "title": "Liquidity", 
+                            "bind": "compositeProfile.legalAgreement.attributes.addOnLiquidity", 
+                            "type": "checkbox",
+                            "options": [{"label": "Liquidity", "value": true}]
+                        },
+                        { 
+                            "title": "Tenor", 
+                            "bind": "compositeProfile.legalAgreement.attributes.addOnTenor", 
+                            "type": "checkbox",
+                            "options": [{"label": "Tenor", "value": true}]
+                        },
+                        { 
+                            "title": "FX", 
+                            "bind": "compositeProfile.legalAgreement.attributes.addOnFX", 
+                            "type": "checkbox",
+                            "options": [{"label": "FX", "value": true}]
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "refKey": "masterAgreements",
+            "header": {
+                "title": "In Scope Master Agreements"
+            },
+            "type": "datatable",
+            "bind": "compositeProfile.legalAgreement.attributes.masterAgreements",
+            "columnDefs": [
+                {
+                    "field": "agreementId",
+                    "headerName": "Agreement ID",
+                    "checkboxSelection": true
+                },
+                {
+                    "field": "agreementType", 
+                    "headerName": "Agreement Type"
+                },
+                {
+                    "field": "legalEntityName",
+                    "headerName": "Legal Entity Name"
+                },
+                {
+                    "field": "status",
+                    "headerName": "Status"
+                },
+                {
+                    "field": "updatedBy",
+                    "headerName": "Updated By"
+                }
+            ]
+        }
+    ],
+    "create": {
+        "newCalculation": {
+            "data": [
+                {
+                    "column": [
+                        {
+                            "title": "Calculation Method",
+                            "bind": "calculationMethod",
+                            "type": "dropdown",
+                            "options": ["SIMM", "SCHEDULE"]
+                        },
+                        {
+                            "title": "Calculation Product",
+                            "bind": "calculationProduct",
+                            "type": "input"
+                        }
+                    ]
+                }
+            ]
+        }
+    }
+}
