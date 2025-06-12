@@ -1,4 +1,4 @@
-HANDLE_REQUIREMENT_HAIRCUT_UPDATE = (event) => {
+HANDLE_REQUIREMENT_HAIRCUT_UPDATE : (event) => {
     let inputElement = event?.target;
     let clone = _.cloneDeep(this.state.config);
     let requirementHaircutValue;
@@ -20,54 +20,52 @@ HANDLE_REQUIREMENT_HAIRCUT_UPDATE = (event) => {
     }
     
     let processedHaircutValue;
-    let displayValue;
+    let isEmptyValue = false;
     
-    // Check if the value is empty, null, or undefined
     if (requirementHaircutValue == null || 
         requirementHaircutValue === undefined || 
         requirementHaircutValue === '' || 
-        requirementHaircutValue === 'null') {
+        requirementHaircutValue === 'null' ||
+        (typeof requirementHaircutValue === 'string' && requirementHaircutValue.trim() === '')) {
         
         if (inputElement && inputElement === document.activeElement) {
-            // User is actively typing - default to 1
-            processedHaircutValue = 1;
-            displayValue = 1;
+            processedHaircutValue = '';
+            isEmptyValue = true;
         } else {
-            // Field is empty and user is not actively typing - keep it null
-            processedHaircutValue = null;
-            displayValue = '';
+            processedHaircutValue = undefined;
+            isEmptyValue = true;
         }
     } else {
-        // Clean and validate the value
         let cleanValue = String(requirementHaircutValue)
             .trim()
             .replace(/,/g, '')
             .replace(/[^\d.]/g, '');
         
-        let numericValue = parseFloat(cleanValue);
-        
-        if (isNaN(numericValue)) {
-            processedHaircutValue = 1;
-            displayValue = 1;
-        } else if (numericValue <= 0) {
-            processedHaircutValue = 0;
-            displayValue = 0;
-        } else if (numericValue > 10) {
-            processedHaircutValue = 10;
-            displayValue = 10;
+        if (cleanValue === '') {
+            processedHaircutValue = undefined;
+            isEmptyValue = true;
         } else {
-            processedHaircutValue = numericValue;
-            displayValue = numericValue;
+            let numericValue = parseFloat(cleanValue);
+            
+            if (isNaN(numericValue)) {
+                processedHaircutValue = 1;
+            } else if (numericValue <= 0) {
+                processedHaircutValue = 0;
+            } else if (numericValue > 10) {
+                processedHaircutValue = 10;
+            } else {
+                processedHaircutValue = numericValue;
+            }
         }
     }
     
-    // Update input element display
     if (inputElement) {
-        inputElement.value = displayValue;
-        if (displayValue !== '') {
-            inputElement.setAttribute('value', displayValue);
-        } else {
+        if (isEmptyValue) {
+            inputElement.value = '';
             inputElement.removeAttribute('value');
+        } else {
+            inputElement.value = processedHaircutValue;
+            inputElement.setAttribute('value', processedHaircutValue);
         }
     } else {
         try {
@@ -76,31 +74,40 @@ HANDLE_REQUIREMENT_HAIRCUT_UPDATE = (event) => {
                 document.querySelector('input[min="0"][max="10"]');
             
             if (foundInput) {
-                foundInput.value = displayValue;
-                if (displayValue !== '') {
-                    foundInput.setAttribute('value', displayValue);
-                } else {
+                if (isEmptyValue) {
+                    foundInput.value = '';
                     foundInput.removeAttribute('value');
+                } else {
+                    foundInput.value = processedHaircutValue;
+                    foundInput.setAttribute('value', processedHaircutValue);
                 }
             }
         } catch (error) {
-            // Silently handle error
         }
     }
     
-    // Update form configuration
     let snapshot = clone.layout.find(x => x.refKey === 'parameters')?.data.map(x => {
         x.column.map(form => {
             if (form.title === 'Requirement Haircut/Multiplier') {
-                form.value = processedHaircutValue;
+                if (isEmptyValue) {
+                    form.value = undefined;
+                    form.isEmpty = true;
+                } else {
+                    form.value = processedHaircutValue;
+                    form.isEmpty = false;
+                }
                 form.source = 'USER';
             }
         });
         return x;
     });
     
-    // Set the attribute value - use null for empty values
-    attributes.requirementHairCut = processedHaircutValue;
+    if (isEmptyValue) {
+        delete attributes.requirementHairCut;
+    } else {
+        attributes.requirementHairCut = processedHaircutValue;
+    }
+    
     legalAgreement.attributes = attributes;
     compositeProfile.legalAgreement = legalAgreement;
     formData.compositeProfile = compositeProfile;
@@ -117,11 +124,12 @@ HANDLE_REQUIREMENT_HAIRCUT_UPDATE = (event) => {
                     document.querySelector('input[min="0"][max="10"]');
                 
                 if (inputToCheck) {
-                    inputToCheck.value = displayValue;
-                    if (displayValue !== '') {
-                        inputToCheck.setAttribute('value', displayValue);
-                    } else {
+                    if (isEmptyValue) {
+                        inputToCheck.value = '';
                         inputToCheck.removeAttribute('value');
+                    } else {
+                        inputToCheck.value = processedHaircutValue;
+                        inputToCheck.setAttribute('value', processedHaircutValue);
                     }
                 }
             }, 50);
