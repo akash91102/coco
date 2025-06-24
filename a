@@ -1,59 +1,40 @@
 processLegalAgreementProfiles = (data) => {
-    console.log('Processing with direct path, data:', data);
-
-    let legalAgreementProfiles = null;
-
+    let legalAgreementProfiles = [];
     const crossMarginStats = data?.compositeProfile?.legalAgreement?.attributes?.crossMarginStatistics?.value;
 
-    if (crossMarginStats && Array.isArray(crossMarginStats) && crossMarginStats.length > 0) {
-        const legalEntities = crossMarginStats[0]?.legalEntities;
-        if (legalEntities && Array.isArray(legalEntities) && legalEntities.length > 0) {
-            legalAgreementProfiles = legalEntities[0]?.legalAgreementProfiles;
-        }
-    }
-
-    if (!legalAgreementProfiles) {
-        if (data && typeof data === 'object' && !Array.isArray(data)) {
-            const hasAgreementTypes = Object.keys(data).some(key => 
-                key.includes('PRINCIPAL') || key.includes('REPO') || key.includes('DERIVATIVE')
-            );
-            if (hasAgreementTypes) {
-                legalAgreementProfiles = data;
-            }
-        }
-    }
-
-    if (!legalAgreementProfiles) {
-        console.log('No legalAgreementProfiles found');
-        return [];
-    }
-
-    console.log('Found legalAgreementProfiles:', legalAgreementProfiles);
-
-    let allProfiles = [];
-
-    Object.keys(legalAgreementProfiles).forEach(agreementType => {
-        const profiles = legalAgreementProfiles[agreementType];
-
-        if (Array.isArray(profiles)) {
-            profiles.forEach((profile, index) => {
-                allProfiles.push({
-                    agreementId: profile.profileId || `N/A-${agreementType}-${index}`,
-                    agreementCategory: agreementType,
-                    profileType: profile.profileType || 'N/A',
-                    legalEntityName: profile.lineOfBusiness || 'N/A',
-                    status: profile.profileStatus || 'Unknown',
-                    updatedBy: profile.updatedBy || 'N/A',
-                    updatedAt: profile.updatedAt || 'N/A',
-                    createdBy: profile.createdBy || 'N/A',
-                    version: profile.version || 0,
-                    _originalData: profile,
-                    _agreementType: agreementType
+    if (Array.isArray(crossMarginStats) && crossMarginStats.length > 0) {
+        crossMarginStats.forEach((statItem) => {
+            const legalEntities = statItem?.legalEntities;
+            if (Array.isArray(legalEntities) && legalEntities.length > 0) {
+                legalEntities.forEach((entity) => {
+                    const profilesObj = entity?.legalAgreementProfiles;
+                    if (profilesObj && typeof profilesObj === 'object') {
+                        Object.keys(profilesObj).forEach(agreementType => {
+                            const profiles = profilesObj[agreementType];
+                            if (Array.isArray(profiles)) {
+                                profiles.forEach((profile, index) => {
+                                    legalAgreementProfiles.push({
+                                        agreementId: profile.profileId || `N/A-${agreementType}-${index}`,
+                                        agreementCategory: agreementType,
+                                        profileType: profile.profileType || 'N/A',
+                                        legalEntityName: profile.lineOfBusiness || 'N/A',
+                                        status: profile.profileStatus || 'Unknown',
+                                        updatedBy: profile.updatedBy || 'N/A',
+                                        updatedAt: profile.updatedAt || 'N/A',
+                                        createdBy: profile.createdBy || 'N/A',
+                                        version: profile.version || 0,
+                                        _originalData: profile,
+                                        _agreementType: agreementType
+                                    });
+                                });
+                            }
+                        });
+                    }
                 });
-            });
-        }
-    });
+            }
+        });
+    }
 
-    console.log('Processed profiles:', allProfiles);
-    return allProfiles;
+
+    return legalAgreementProfiles;
 };
