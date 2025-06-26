@@ -1,58 +1,213 @@
-createNewMasterAgreement = () => {
-    const data = this.props.data || this.props.profileData || {};
-    let newEntry = null;
-    const prop = 'compositeProfile.legalAgreement.attributes.masterAgreements';
-
-    selectedRowIdx = null;
-
-    this.toggleModal({
-        state: true,
-        header: { title: 'Add New Master Agreement' },
-        formdata: newFormBind({ formdata: this.state.config.create?.newMasterAgreement }),
-        onUpdate: (newdata) => {
-            newEntry = tableEntryUpdate({ newdata, markSource: true });
+{
+    "layout": [
+        {
+            "refKey": "agreement",
+            "header": {
+                "title": "Agreement",
+                "showSubTitle": true
+            },
+            "type": "form",
+            "data": [
+                {
+                    "column": [
+                        {
+                            "title": "Profile ID",
+                            "bind": "compositeProfile.legalAgreement.profileId",
+                            "type": "input",
+                            "readonly": true,
+                            "markSource": false
+                        },
+                        {
+                            "title": "Agreement No",
+                            "bind": "compositeProfile.legalAgreement.profileId",
+                            "type": "input",
+                            "required": true,
+                            "markSource": false
+                        },
+                        {
+                            "title": "Agreement Type",
+                            "bind": "compositeProfile.legalAgreement.profileType",
+                            "type": "input"
+                        },
+                        {
+                            "title": "Updated By",
+                            "bind": "compositeProfile.legalAgreement.updatedBy",
+                            "type": "input"
+                        }
+                    ]
+                },
+                {
+                    "column": [
+                        {
+                            "title": "SPN",
+                            "bind": "compositeProfile.legalAgreement.attributes.spn",
+                            "type": "input",
+                            "required": true
+                        },
+                        {
+                            "title": "Status",
+                            "bind": "compositeProfile.legalAgreement.profileStatus",
+                            "type": "input"
+                        },
+                        {
+                            "title": "Version",
+                            "bind": "compositeProfile.legalAgreement.version",
+                            "type": "input"
+                        },
+                        {
+                            "title": "Updated At",
+                            "bind": "compositeProfile.legalAgreement.updatedDtm",
+                            "type": "datepicker"
+                        },
+                        {
+                            "title": "ECID",
+                            "bind": "compositeProfile.legalAgreement.attributes.eci",
+                            "type": "input",
+                            "required": true
+                        }
+                    ]
+                }
+            ]
         },
-        onSave: () => {
-            let exists = false;
-            let formData = cloneObject(data);
-            
-            if (!formData.compositeProfile?.legalAgreement?.attributes?.masterAgreements) {
-                this.initializeProfileData(formData);
-            }
-
-            // Check for duplicate Agreement IDs
-            formData.compositeProfile.legalAgreement.attributes.masterAgreements.forEach(item => {
-                if (item.agreementId === newEntry.agreementId?.value) {
-                    exists = true;
-                    MessageBox.error('Validation Error', 'Agreement ID already exists. Please enter a unique Agreement ID.', 500);
+        {
+            "refKey": "crossMarginEntities",
+            "header": {
+                "title": "Cross Product Margin Calc",
+                "showSubTitle": true
+            },
+            "type": "form",
+            "data": [
+                {
+                    "column": [
+                        {
+                            "title": "Tier",
+                            "bind": "compositeProfile.legalAgreement.profileId",
+                            "type": "input",
+                            "readonly": true,
+                            "markSource": false
+                        },
+                        {
+                            "title": "Add On",
+                            "bind": "compositeProfile.legalAgreement.agreementNo",
+                            "type": "input",
+                            "required": true,
+                            "markSource": false
+                        },
+                        {
+                            "title": "House Multliplier",
+                            "bind": "compositeProfile.legalAgreement.attributes.agreementType",
+                            "type": "dropdown",
+                            "options": [
+                                "ISDA",
+                                "PSA",
+                                "CLEARING",
+                                "GIMRA",
+                                "OTCIC"
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "column": [
+                        {
+                            "title": "Tier Version",
+                            "bind": "compositeProfile.legalAgreement.attributes",
+                            "type": "input",
+                            "required": true
+                        },
+                        {
+                            "title": "Tier Effective Date",
+                            "bind": "compositeProfile.legalAgreement.status",
+                            "type": "input"
+                        }
+                    ]
                 }
-            });
-
-            if (!exists) {
-                // Transform the form data into the expected table format
-                const newAgreement = {
-                    lineOfBusiness: newEntry.lineOfBusiness?.value || '',
-                    agreementId: newEntry.agreementId?.value || '', 
-                    agreementType: newEntry.agreementType?.value || '',
-                    legalEntityId: newEntry.legalEntityId?.value || '',
-                    legalEntity: newEntry.legalEntity?.value || ''
-                };
-
-                formData.compositeProfile.legalAgreement.attributes.masterAgreements.push(newAgreement);
-                this.toggleModal({ state: false });
-                
-                if (this.props.onCustFormUpdate) {
-                    this.props.onCustFormUpdate(formData);
+            ]
+        },
+        {
+            "refKey": "masterAgreements",
+            "createKey": "newMasterAgreements",
+            "header": {
+                "title": "In Scope Master Agreements",
+                "buttons": [
+                    {
+                        "title": "Add",
+                        "events": {
+                            "onClick": "CREATE_NEW_MASTER_AGREEMENT"
+                        }
+                    }
+                ]
+            },
+            "type": "datatable",
+            "bind": "compositeProfile.legalAgreement.attributes.masterAgreements",
+            "columnDefs": [
+                {
+                    "field": "lineOfBusiness",
+                    "headerName": "Line Of Business",
+                    "checkboxSelection": true
+                },
+                {
+                    "field": "agreementId",
+                    "headerName": "Agreement ID"
+                },
+                {
+                    "field": "profileType",
+                    "headerName": "Agreement Type"
+                },
+                {
+                    "field": "legalEntityId",
+                    "headerName": "Legal Entity ID"
+                },
+                {
+                    "field": "legalEntity",
+                    "headerName": "Legal Entity"
                 }
-                
-                // Refresh the grid
-                if (this.state.gridApi["masterAgreements"]) {
-                    this.state.gridApi["masterAgreements"].setRowData(
-                        formData.compositeProfile.legalAgreement.attributes.masterAgreements
-                    );
-                    this.gridBindEvents(this.state.gridApi["masterAgreements"]);
-                }
-            }
+            ]
         }
-    });
-};
+    ],
+    "create": {
+        "newMasterAgreements": {
+            "data": [
+                {
+                    "column": [
+                        {
+                            "title": "Line Of Business",
+                            "bind": "lineOfBusiness",
+                            "type": "input",
+                            "required": true,
+                            "placeholder": "Enter Line of Business"
+                        },
+                        {
+                            "title": "Agreement ID",
+                            "bind": "agreementId",
+                            "type": "input",
+                            "required": true,
+                            "placeholder": "Enter Agreement ID"
+                        },
+                        {
+                            "title": "Agreement Type",
+                            "bind": "agreementType",
+                            "type": "input",
+                            "required": true,
+                            "placeholder": "Enter Agreement Type"
+                        },
+                        {
+                            "title": "Legal Entity ID",
+                            "bind": "legalEntityId",
+                            "type": "input",
+                            "required": true,
+                            "placeholder": "Enter Legal Entity ID"
+                        },
+                        {
+                            "title": "Legal Entity",
+                            "bind": "legalEntity",
+                            "type": "input",
+                            "required": true,
+                            "placeholder": "Enter Legal Entity Name"
+                        }
+                    ]
+                }
+            ]
+        }
+    }
+}
