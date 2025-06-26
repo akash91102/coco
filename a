@@ -1,40 +1,58 @@
-processLegalAgreementProfiles = (data) => {
-    let legalAgreementProfiles = [];
-    const crossMarginStats = data?.compositeProfile?.legalAgreement?.attributes?.crossMarginStatistics?.value;
+createNewMasterAgreement = () => {
+    const data = this.props.data || this.props.profileData || {};
+    let newEntry = null;
+    const prop = 'compositeProfile.legalAgreement.attributes.masterAgreements';
 
-    if (Array.isArray(crossMarginStats) && crossMarginStats.length > 0) {
-        crossMarginStats.forEach((statItem) => {
-            const legalEntities = statItem?.legalEntities;
-            if (Array.isArray(legalEntities) && legalEntities.length > 0) {
-                legalEntities.forEach((entity) => {
-                    const profilesObj = entity?.legalAgreementProfiles;
-                    if (profilesObj && typeof profilesObj === 'object') {
-                        Object.keys(profilesObj).forEach(agreementType => {
-                            const profiles = profilesObj[agreementType];
-                            if (Array.isArray(profiles)) {
-                                profiles.forEach((profile, index) => {
-                                    legalAgreementProfiles.push({
-                                        agreementId: profile.profileId || `N/A-${agreementType}-${index}`,
-                                        agreementCategory: agreementType,
-                                        profileType: profile.profileType || 'N/A',
-                                        legalEntityName: profile.lineOfBusiness || 'N/A',
-                                        status: profile.profileStatus || 'Unknown',
-                                        updatedBy: profile.updatedBy || 'N/A',
-                                        updatedAt: profile.updatedAt || 'N/A',
-                                        createdBy: profile.createdBy || 'N/A',
-                                        version: profile.version || 0,
-                                        _originalData: profile,
-                                        _agreementType: agreementType
-                                    });
-                                });
-                            }
-                        });
-                    }
-                });
+    selectedRowIdx = null;
+
+    this.toggleModal({
+        state: true,
+        header: { title: 'Add New Master Agreement' },
+        formdata: newFormBind({ formdata: this.state.config.create?.newMasterAgreement }),
+        onUpdate: (newdata) => {
+            newEntry = tableEntryUpdate({ newdata, markSource: true });
+        },
+        onSave: () => {
+            let exists = false;
+            let formData = cloneObject(data);
+            
+            if (!formData.compositeProfile?.legalAgreement?.attributes?.masterAgreements) {
+                this.initializeProfileData(formData);
             }
-        });
-    }
 
+            // Check for duplicate Agreement IDs
+            formData.compositeProfile.legalAgreement.attributes.masterAgreements.forEach(item => {
+                if (item.agreementId === newEntry.agreementId?.value) {
+                    exists = true;
+                    MessageBox.error('Validation Error', 'Agreement ID already exists. Please enter a unique Agreement ID.', 500);
+                }
+            });
 
-    return legalAgreementProfiles;
+            if (!exists) {
+                // Transform the form data into the expected table format
+                const newAgreement = {
+                    lineOfBusiness: newEntry.lineOfBusiness?.value || '',
+                    agreementId: newEntry.agreementId?.value || '', 
+                    agreementType: newEntry.agreementType?.value || '',
+                    legalEntityId: newEntry.legalEntityId?.value || '',
+                    legalEntity: newEntry.legalEntity?.value || ''
+                };
+
+                formData.compositeProfile.legalAgreement.attributes.masterAgreements.push(newAgreement);
+                this.toggleModal({ state: false });
+                
+                if (this.props.onCustFormUpdate) {
+                    this.props.onCustFormUpdate(formData);
+                }
+                
+                // Refresh the grid
+                if (this.state.gridApi["masterAgreements"]) {
+                    this.state.gridApi["masterAgreements"].setRowData(
+                        formData.compositeProfile.legalAgreement.attributes.masterAgreements
+                    );
+                    this.gridBindEvents(this.state.gridApi["masterAgreements"]);
+                }
+            }
+        }
+    });
 };
