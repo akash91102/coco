@@ -1,1 +1,39 @@
-a
+newMasterAgreement: {
+    data: [
+        {
+            refKey: "lineOfBusiness",
+            label: "Line Of Business",
+            type: "text",
+            required: true,
+            placeholder: "Enter Line of Business"
+        },
+        {
+            refKey: "agreementId",
+            label: "Agreement ID",
+            type: "text",
+            required: true,
+            placeholder: "Enter Agreement ID"
+        },
+        {
+            refKey: "agreementType",
+            label: "Agreement Type", 
+            type: "text",
+            required: true,
+            placeholder: "Enter Agreement Type"
+        },
+        {
+            refKey: "legalEntityId",
+            label: "Legal Entity ID",
+            type: "text",
+            required: true,
+            placeholder: "Enter Legal Entity ID"
+        },
+        {
+            refKey: "legalEntity",
+            label: "Legal Entity",
+            type: "text",
+            required: true,
+            placeholder: "Enter Legal Entity Name"
+        }
+    ]
+}
