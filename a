@@ -1,1 +1,219 @@
-aa
+{
+    "layout": [
+        {
+            "refKey": "agreement",
+            "header": {
+                "title": "Agreement",
+                "showSubTitle": true
+            },
+            "type": "form",
+            "data": [
+                {
+                    "column": [
+                        {
+                            "title": "Profile ID",
+                            "bind": "compositeProfile.legalAgreement.profileId",
+                            "type": "input",
+                            "readonly": true,
+                            "markSource": false
+                        },
+                        {
+                            "title": "Agreement No",
+                            "bind": "compositeProfile.legalAgreement.profileId",
+                            "type": "input",
+                            "required": true,
+                            "markSource": false
+                        },
+                        {
+                            "title": "Agreement Type",
+                            "bind": "compositeProfile.legalAgreement.profileType",
+                            "type": "input"
+                        },
+                        {
+                            "title": "Updated By",
+                            "bind": "compositeProfile.legalAgreement.updatedBy",
+                            "type": "input"
+                        }
+                    ]
+                },
+                {
+                    "column": [
+                        {
+                            "title": "SPN",
+                            "bind": "compositeProfile.legalAgreement.attributes.spn",
+                            "type": "input",
+                            "required": true
+                        },
+                        {
+                            "title": "Status",
+                            "bind": "compositeProfile.legalAgreement.profileStatus",
+                            "type": "input"
+                        },
+                        {
+                            "title": "Version",
+                            "bind": "compositeProfile.legalAgreement.version",
+                            "type": "input"
+                        },
+                        {
+                            "title": "Updated At",
+                            "bind": "compositeProfile.legalAgreement.updatedDtm",
+                            "type": "datepicker"
+                        },
+                        {
+                            "title": "ECID",
+                            "bind": "compositeProfile.legalAgreement.attributes.eci",
+                            "type": "input",
+                            "required": true
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "refKey": "crossMarginEntities",
+            "header": {
+                "title": "Cross Product Margin Calc",
+                "showSubTitle": true
+            },
+            "type": "form",
+            "data": [
+                {
+                    "column": [
+                        {
+                            "title": "Tier",
+                            "bind": "compositeProfile.legalAgreement.profileId",
+                            "type": "input",
+                            "readonly": true,
+                            "markSource": false
+                        },
+                        {
+                            "title": "Add On",
+                            "bind": "compositeProfile.legalAgreement.agreementNo",
+                            "type": "input",
+                            "required": true,
+                            "markSource": false
+                        },
+                        {
+                            "title": "House Multliplier",
+                            "bind": "compositeProfile.legalAgreement.attributes.agreementType",
+                            "type": "dropdown",
+                            "options": [
+                                "ISDA",
+                                "PSA",
+                                "CLEARING",
+                                "GIMRA",
+                                "OTCIC"
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "column": [
+                        {
+                            "title": "Tier Version",
+                            "bind": "compositeProfile.legalAgreement.attributes",
+                            "type": "input",
+                            "required": true
+                        },
+                        {
+                            "title": "Tier Effective Date",
+                            "bind": "compositeProfile.legalAgreement.status",
+                            "type": "input"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "refKey": "masterAgreements",
+            "createKey": "newMasterAgreements",
+            "header": {
+                "title": "In Scope Master Agreements",
+                "buttons": [
+                    {
+                        "title": "Add",
+                        "events": {
+                            "onClick": "CREATE_NEW_MASTER_AGREEMENT"
+                        }
+                    }
+                ]
+            },
+            "type": "datatable",
+            "bind": "compositeProfile.legalAgreement.attributes.masterAgreements",
+            "columnDefs": [
+                {
+                    "field": "lineOfBusiness",
+                    "headerName": "Line Of Business",
+                    "checkboxSelection": true
+                },
+                {
+                    "field": "agreementId",
+                    "headerName": "Agreement ID"
+                },
+                {
+                    "field": "profileType",
+                    "headerName": "Agreement Type"
+                },
+                {
+                    "field": "legalEntityId",
+                    "headerName": "Legal Entity ID"
+                },
+                {
+                    "field": "legalEntity",
+                    "headerName": "Legal Entity"
+                },
+                {
+                    "headerName": "Actions",
+                    "actions": [
+                        {"name": "Delete", "applyClass": "masterAgreementRemoveBtn"}
+                    ]
+                }
+            ]
+        }
+    ],
+    "create": {
+        "newMasterAgreements": {
+            "data": [
+                {
+                    "column": [
+                        {
+                            "title": "Line Of Business",
+                            "bind": "lineOfBusiness",
+                            "type": "input",
+                            "required": true,
+                            "placeholder": "Enter Line of Business"
+                        },
+                        {
+                            "title": "Agreement ID",
+                            "bind": "agreementId",
+                            "type": "input",
+                            "required": true,
+                            "placeholder": "Enter Agreement ID"
+                        },
+                        {
+                            "title": "Agreement Type",
+                            "bind": "agreementType",
+                            "type": "input",
+                            "required": true,
+                            "placeholder": "Enter Agreement Type"
+                        },
+                        {
+                            "title": "Legal Entity ID",
+                            "bind": "legalEntityId",
+                            "type": "input",
+                            "required": true,
+                            "placeholder": "Enter Legal Entity ID"
+                        },
+                        {
+                            "title": "Legal Entity",
+                            "bind": "legalEntity",
+                            "type": "input",
+                            "required": true,
+                            "placeholder": "Enter Legal Entity Name"
+                        }
+                    ]
+                }
+            ]
+        }
+    }
+}
