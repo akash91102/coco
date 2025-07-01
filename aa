@@ -96,14 +96,7 @@
                         {
                             "title": "House Multiplier",
                             "bind": "compositeProfile.legalAgreement.attributes.houseMultiplier",
-                            "type": "dropdown",
-                            "options": [
-                                "ISDA",
-                                "PSA",
-                                "CLEARING",
-                                "GIMRA",
-                                "OTCIC"
-                            ]
+                            "type": "input"
                         }
                     ]
                 },
@@ -134,6 +127,12 @@
                         "title": "Add",
                         "events": {
                             "onClick": "CREATE_NEW_MASTER_AGREEMENT"
+                        }
+                    },
+                    {
+                        "title": "Delete",
+                        "events": {
+                            "onClick": "DELETE_SELECTED_MASTER_AGREEMENTS"
                         }
                     }
                 ]
