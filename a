@@ -41,7 +41,7 @@ class XMProfileFields extends Component {
             toggleState: true,
             ready: true,
             gridApi: {},
-            selectedRows: [],
+            selectedRows: [], // Track selected rows for deletion
             modal: {
                 disabled: null,
                 show: false,
@@ -71,69 +71,84 @@ class XMProfileFields extends Component {
                         newEntry = tableEntryUpdate({ newdata, markSource: true });
                     },
                     onSave: () => {
-                        console.log('Saving new master agreement...');
+                        console.group('💾 Adding New Master Agreement');
+                        console.log('New entry data:', newEntry);
+                        
                         this.setState({ resetTable: true }, () => {
                             let exists = false;
                             let formData = cloneObject(data);
                             
-                            this.initializeProfileData(formData);
-                
-                            if (formData.compositeProfile.legalAgreement.attributes.masterAgreements) {
-                                formData.compositeProfile.legalAgreement.attributes.masterAgreements.forEach(item => {
+                            if (!formData.compositeProfile?.legalAgreement?.attributes?.masterAgreements) {
+                                console.log('Initializing master agreements array');
+                                this.initializeProfileData(formData);
+                            }
+
+                            const currentAgreements = formData.compositeProfile.legalAgreement.attributes.masterAgreements;
+                            console.log('Current agreements before adding:', currentAgreements);
+
+                            // Check for duplicate Agreement IDs
+                            if (currentAgreements) {
+                                currentAgreements.forEach(item => {
                                     if (item.agreementId === newEntry.agreementId?.value) {
                                         exists = true;
                                         MessageBox.error('Validation Error', 'Agreement ID already exists. Please enter a unique Agreement ID.', 500);
                                     }
                                 });
                             }
-                
+
                             if (!exists) {
+                                // Transform the form data into the expected table format
                                 const newAgreement = {
                                     lineOfBusiness: newEntry.lineOfBusiness?.value || '',
                                     agreementId: newEntry.agreementId?.value || '', 
                                     profileType: newEntry.agreementType?.value || '',
                                     legalEntityId: newEntry.legalEntityId?.value || '',
-                                    legalEntity: newEntry.legalEntity?.value || ''
+                                    legalEntity: newEntry.legalEntity?.value || '',
+                                    // Add additional fields for API payload
+                                    status: 'Active',
+                                    createdAt: moment().format("YYYY-MM-DD HH:mm:ss.SSS"),
+                                    updatedAt: moment().format("YYYY-MM-DD HH:mm:ss.SSS"),
+                                    createdBy: this.props.userInfo?.username || 'system'
                                 };
 
+                                console.log('New agreement to add:', newAgreement);
+                                
                                 formData.compositeProfile.legalAgreement.attributes.masterAgreements.push(newAgreement);
                                 
-                                this.addToCrossMarginEntities(formData, newAgreement);
+                                console.log('Updated agreements array:', 
+                                    formData.compositeProfile.legalAgreement.attributes.masterAgreements);
                                 
                                 this.toggleModal({ state: false });
                                 
+                                // Update parent component with new data
                                 if (this.props.onCustFormUpdate) {
+                                    console.log('Calling onCustFormUpdate with updated data');
                                     this.props.onCustFormUpdate(formData);
+                                } else {
+                                    console.warn('⚠️ onCustFormUpdate prop not provided');
                                 }
                                 
+                                // Refresh the grid
                                 if (this.state.gridApi["masterAgreements"]) {
+                                    console.log('Refreshing grid with new data');
                                     this.state.gridApi["masterAgreements"].setRowData(
                                         formData.compositeProfile.legalAgreement.attributes.masterAgreements
                                     );
-                                    this.gridBindEvents(this.state.gridApi["masterAgreements"]);
+                                } else {
+                                    console.warn('⚠️ Grid API not available for refresh');
                                 }
                                 
                                 this.setState({ resetTable: false });
                             }
+                            
+                            console.groupEnd();
                         });
                     }
                 });
             },
-
             DELETE_SELECTED_MASTER_AGREEMENTS: () => {
-                const selectedRows = this.state.selectedRows;
-                if (selectedRows.length === 0) {
-                    MessageBox.error('Selection Required', 'Please select at least one row to delete.', 500);
-                    return;
-                }
-
-                MessageBox.confirm('Confirm Delete', 
-                    `Are you sure you want to delete ${selectedRows.length} selected agreement(s)?`, 
-                    () => {
-                        this.deleteSelectedAgreements(selectedRows);
-                    }
-                );
-            },
+                this.deleteSelectedRows();
+            }
         };
 
         autoBind(this);
@@ -159,7 +174,7 @@ class XMProfileFields extends Component {
                 },
                 {
                     title: "Submit",
-                    onclick: this.props.onSubmit,
+                    onclick: this.handleSubmit,
                     displayIf: this.isProfileNewOrActive.bind(this),
                 },
                 {
@@ -174,107 +189,6 @@ class XMProfileFields extends Component {
                 },
             ];
     }
-
-    addToCrossMarginEntities = (formData, newAgreement) => {
-        if (!formData.compositeProfile.legalAgreement.attributes.crossMarginEntities) {
-            return;
-        }
-
-        const crossMarginEntities = formData.compositeProfile.legalAgreement.attributes.crossMarginEntities.value;
-        
-        let counterPartyEntry = crossMarginEntities.find(entity => 
-            entity.counterParty && entity.counterParty.spn === formData.compositeProfile.legalAgreement.attributes.spn
-        );
-
-        if (!counterPartyEntry && crossMarginEntities.length > 0) {
-            counterPartyEntry = crossMarginEntities[0];
-        }
-
-        if (counterPartyEntry) {
-            let legalEntityEntry = counterPartyEntry.legalEntities.find(le => 
-                le.legalEntity && le.legalEntity.eci === newAgreement.legalEntityId
-            );
-
-            if (!legalEntityEntry && counterPartyEntry.legalEntities.length > 0) {
-                legalEntityEntry = counterPartyEntry.legalEntities[0];
-            }
-
-            if (legalEntityEntry) {
-                const lob = newAgreement.lineOfBusiness;
-                if (!legalEntityEntry.legalAgreementProfiles[lob]) {
-                    legalEntityEntry.legalAgreementProfiles[lob] = [];
-                }
-
-                const profileObject = {
-                    profileId: newAgreement.agreementId,
-                    lineOfBusiness: newAgreement.lineOfBusiness,
-                    profileType: newAgreement.profileType,
-                    profileStatus: "NEW",
-                    createdBy: this.props.userInfo?.userDetails?.principalId || "USER",
-                    createdDtm: moment().unix(),
-                    updatedDtm: moment().unix(),
-                    updatedBy: this.props.userInfo?.userDetails?.principalId || "USER",
-                    version: 1,
-                    attributes: null,
-                    approvedDtm: null,
-                    approvedBy: null,
-                    comments: null,
-                    activationDtm: null
-                };
-
-                legalEntityEntry.legalAgreementProfiles[lob].push(profileObject);
-            }
-        }
-    };
-
-    deleteSelectedAgreements = (selectedRows) => {
-        let formData = cloneObject(this.props.data || {});
-        
-        const agreementIdsToDelete = selectedRows.map(row => row.agreementId);
-        
-        if (formData.compositeProfile?.legalAgreement?.attributes?.masterAgreements) {
-            formData.compositeProfile.legalAgreement.attributes.masterAgreements = 
-                formData.compositeProfile.legalAgreement.attributes.masterAgreements.filter(
-                    agreement => !agreementIdsToDelete.includes(agreement.agreementId)
-                );
-        }
-
-        this.removeFromCrossMarginEntities(formData, agreementIdsToDelete);
-
-        if (this.state.gridApi["masterAgreements"]) {
-            this.state.gridApi["masterAgreements"].setRowData(
-                formData.compositeProfile.legalAgreement.attributes.masterAgreements
-            );
-            this.gridBindEvents(this.state.gridApi["masterAgreements"]);
-        }
-
-        this.setState({ selectedRows: [] });
-
-        if (this.props.onCustFormUpdate) {
-            this.props.onCustFormUpdate(formData);
-        }
-    };
-
-    removeFromCrossMarginEntities = (formData, agreementIdsToDelete) => {
-        const crossMarginEntities = formData.compositeProfile?.legalAgreement?.attributes?.crossMarginEntities?.value;
-        
-        if (!crossMarginEntities) return;
-
-        crossMarginEntities.forEach(entity => {
-            if (entity.legalEntities) {
-                entity.legalEntities.forEach(legalEntity => {
-                    if (legalEntity.legalAgreementProfiles) {
-                        Object.keys(legalEntity.legalAgreementProfiles).forEach(lob => {
-                            legalEntity.legalAgreementProfiles[lob] = 
-                                legalEntity.legalAgreementProfiles[lob].filter(
-                                    profile => !agreementIdsToDelete.includes(profile.profileId)
-                                );
-                        });
-                    }
-                });
-            }
-        });
-    };
 
     getPermission(props) {
         const profileReadOnly = props.data?.profileReadOnly || false;
@@ -328,8 +242,19 @@ class XMProfileFields extends Component {
         }
     }
 
+    componentDidUpdate(prevProps) {
+        // Ensure data consistency when props change
+        if (prevProps.data !== this.props.data && this.props.data) {
+            // Refresh grid if data has changed
+            if (this.state.gridApi["masterAgreements"]) {
+                const masterAgreements = this.props.data?.compositeProfile?.legalAgreement?.attributes?.masterAgreements || [];
+                this.state.gridApi["masterAgreements"].setRowData(masterAgreements);
+            }
+        }
+    }
+
     setup = (config) => {
-        let cloneData = this.props.data || {};
+        let cloneData = cloneObject(this.props.data || {});
         this.initializeProfileData(cloneData);
 
         let configSetupVar = configSetup({
@@ -384,6 +309,7 @@ class XMProfileFields extends Component {
             data.compositeProfile.legalAgreement.attributes.masterAgreements = [];
         }
 
+        // Process existing data if available
         if (data.compositeProfile?.legalAgreement?.attributes?.crossMarginEntities?.value) {
             if (data.compositeProfile.legalAgreement.attributes.crossMarginEntities.value[0]?.counterParty?.eci) {
                 data.compositeProfile.legalAgreement.attributes.eci = 
@@ -407,15 +333,61 @@ class XMProfileFields extends Component {
 
         this.setState({ gridApi }, () => {
             api.sizeColumnsToFit();
-            this.gridBindEvents({ api: gridApi[refKey] });
+            
+            // Set up selection change listener for multiple row selection
+            if (refKey === "masterAgreements") {
+                api.addEventListener('selectionChanged', this.onSelectionChanged);
+            }
         });
     };
 
-    gridBindEvents = ({ api }) => {
-        api.addEventListener('selectionChanged', () => {
-            const selectedRows = api.getSelectedRows();
-            this.setState({ selectedRows });
-        });
+    onSelectionChanged = () => {
+        const selectedNodes = this.state.gridApi["masterAgreements"]?.getSelectedNodes() || [];
+        const selectedRows = selectedNodes.map(node => node.data);
+        this.setState({ selectedRows });
+        console.log('Selected rows:', selectedRows);
+    };
+
+    deleteSelectedRows = () => {
+        const { selectedRows } = this.state;
+        
+        if (selectedRows.length === 0) {
+            MessageBox.info('No Selection', 'Please select one or more rows to delete.');
+            return;
+        }
+
+        if (window.confirm(`Are you sure you want to delete ${selectedRows.length} selected master agreement(s)?`)) {
+            console.log('Deleting selected rows:', selectedRows);
+            
+            let formData = cloneObject(this.props.data || {});
+            
+            if (formData.compositeProfile?.legalAgreement?.attributes?.masterAgreements) {
+                // Filter out selected rows
+                const currentAgreements = formData.compositeProfile.legalAgreement.attributes.masterAgreements;
+                const updatedAgreements = currentAgreements.filter(agreement => 
+                    !selectedRows.some(selectedRow => 
+                        JSON.stringify(agreement) === JSON.stringify(selectedRow)
+                    )
+                );
+                
+                formData.compositeProfile.legalAgreement.attributes.masterAgreements = updatedAgreements;
+                
+                // Update parent component
+                if (this.props.onCustFormUpdate) {
+                    this.props.onCustFormUpdate(formData);
+                }
+                
+                // Refresh the grid
+                if (this.state.gridApi["masterAgreements"]) {
+                    this.state.gridApi["masterAgreements"].setRowData(updatedAgreements);
+                }
+                
+                // Clear selection
+                this.setState({ selectedRows: [] });
+                
+                console.log(`Deleted ${selectedRows.length} master agreements`);
+            }
+        }
     };
 
     isFormValid = (props) => {
@@ -430,11 +402,42 @@ class XMProfileFields extends Component {
         return mixinCheckGlobalConditions({ renderIf, _this: this });
     };
 
-    removeSelectedItem = (compInfo, params) => {
+    // Enhanced submit handler with proper payload logging
+    handleSubmit = () => {
+        console.group('🚀 Submit Process Debug');
+        
+        const currentData = this.props.data || {};
+        const masterAgreements = currentData?.compositeProfile?.legalAgreement?.attributes?.masterAgreements;
+        
+        console.log('1. Current form data being submitted:', currentData);
+        console.log('2. Master agreements count:', masterAgreements ? masterAgreements.length : 0);
+        console.log('3. Master agreements data:', masterAgreements);
+        
+        // Validate data structure
+        if (!currentData.compositeProfile) {
+            console.error('❌ Missing compositeProfile in data');
+        }
+        
+        if (!masterAgreements || masterAgreements.length === 0) {
+            console.warn('⚠️ No master agreements found in data structure');
+        } else {
+            console.log('✅ Master agreements found:', masterAgreements.length);
+            masterAgreements.forEach((agreement, index) => {
+                console.log(`Agreement ${index + 1}:`, agreement);
+            });
+        }
+        
+        console.groupEnd();
+        
+        // Call the actual submit if provided
+        if (this.props.onSubmit) {
+            this.props.onSubmit();
+        }
     };
 
-    removeItem = (compInfo, params) => {
-        return "";
+    // Method to get current form data for submission
+    getCurrentFormData = () => {
+        return this.props.data || {};
     };
 
     render() {
@@ -447,7 +450,7 @@ class XMProfileFields extends Component {
             isFormValid,
         } = this;
 
-        const { ready, modal, config, permissions } = this.state;
+        const { ready, modal, config, permissions, selectedRows } = this.state;
         const { onFormUpdate, staticData } = this.props;
 
         let formData = this.props.data || {};
@@ -456,6 +459,7 @@ class XMProfileFields extends Component {
             <div style={{ marginTop: "10px", marginBottom: "10px" }}>
                 {!!config && ready ? (
                     <>
+                        {/* Loop through JSON config layout */}
                         {config.layout.map((x, i) => {
                             const {
                                 refKey,
@@ -480,17 +484,50 @@ class XMProfileFields extends Component {
                                     key={i}
                                 >
                                     {!!header ? (
-                                        <Header
-                                            {...header}
-                                            bindedEvents={bindedEvents}
-                                            permissions={permissions}
-                                        />
+                                        <div>
+                                            <Header
+                                                {...header}
+                                                bindedEvents={bindedEvents}
+                                                permissions={permissions}
+                                            />
+                                            {/* Add Delete button next to Add button for master agreements table */}
+                                            {refKey === "masterAgreements" && !permissions.readonly && (
+                                                <div style={{ 
+                                                    marginTop: "-40px", 
+                                                    marginBottom: "10px", 
+                                                    textAlign: "right",
+                                                    paddingRight: "10px" 
+                                                }}>
+                                                    <Button 
+                                                        variant="outline" 
+                                                        disabled={selectedRows.length === 0}
+                                                        onClick={this.deleteSelectedRows}
+                                                        style={{ 
+                                                            marginLeft: "10px",
+                                                            backgroundColor: selectedRows.length > 0 ? "#dc3545" : "#f8f9fa",
+                                                            color: selectedRows.length > 0 ? "white" : "#6c757d",
+                                                            border: "1px solid #dc3545"
+                                                        }}
+                                                    >
+                                                        <Icon name="delete" style={{ marginRight: "5px" }} />
+                                                        Delete Selected ({selectedRows.length})
+                                                    </Button>
+                                                </div>
+                                            )}
+                                        </div>
                                     ) : null}
 
                                     {!!type && type === "form" ? (
                                         <FormBuilder
                                             data={data}
-                                            onFormUpdate={onFormUpdate}
+                                            onFormUpdate={(updatedData) => {
+                                                if (onFormUpdate) {
+                                                    onFormUpdate(updatedData);
+                                                }
+                                                if (this.props.onCustFormUpdate) {
+                                                    this.props.onCustFormUpdate(updatedData);
+                                                }
+                                            }}
                                             bindedEvents={bindedEvents}
                                             permissions={permissions}
                                             staticData={staticData}
@@ -499,13 +536,30 @@ class XMProfileFields extends Component {
 
                                     {!!type && type === "datatable" ? (
                                         <DataGrid
-                                            suppressRowClickSelection={false}
-                                            rowSelection={'multiple'}
+                                            suppressRowClickSelection={false} // Enable row selection
+                                            rowSelection="multiple" // Enable multiple row selection
+                                            rowMultiSelectWithClick={true} // Allow multiple selection with click
+                                            headerCheckboxSelection={true} // Show header checkbox
+                                            headerCheckboxSelectionFilteredOnly={true} // Only for filtered rows
                                             containerProps={{
                                                 style: { height: "200px" },
                                             }}
                                             rowStripes
-                                            columnDefs={columnDefs}
+                                            columnDefs={columnDefs?.map(col => {
+                                                // Remove actions column and enable checkbox selection on first column
+                                                if (col.actions || col.headerName === "Actions") {
+                                                    return null; // Remove actions column
+                                                }
+                                                if (col.field === "lineOfBusiness") {
+                                                    return {
+                                                        ...col,
+                                                        checkboxSelection: true,
+                                                        headerCheckboxSelection: true,
+                                                        width: 200
+                                                    };
+                                                }
+                                                return col;
+                                            }).filter(Boolean)} // Remove null entries
                                             rowClassRules={rowClassRules}
                                             rowData={traverseFormToBindValue({
                                                 formData,
@@ -521,6 +575,7 @@ class XMProfileFields extends Component {
                             ) : null;
                         })}
 
+                        {/* Modal for adding new master agreement */}
                         <Dialog
                             onEntered={() => {}}
                             open={modal.show}
@@ -592,8 +647,6 @@ class XMProfileFields extends Component {
                                             agreementCategory: agreementType,
                                             profileType: profile.profileType,
                                             legalEntityName: profile.lineOfBusiness,
-                                            legalEntityId: entity.legalEntity?.eci || '',
-                                            legalEntity: entity.legalEntity?.name || '',
                                             status: profile.profileStatus,
                                             updatedBy: profile.updatedBy,
                                             updatedAt: profile.updatedAt,
