@@ -75,50 +75,29 @@ class XMProfileFields extends Component {
                             let exists = false;
                             let formData = cloneObject(data);
                             
-                            if (!formData.compositeProfile?.legalAgreement?.attributes?.masterAgreements) {
-                                this.initializeProfileData(formData);
-                            }
-
-                            const currentAgreements = formData.compositeProfile.legalAgreement.attributes.masterAgreements;
-
-                            if (currentAgreements) {
-                                currentAgreements.forEach(item => {
+                            this.initializeProfileData(formData);
+                
+                            if (formData.compositeProfile.legalAgreement.attributes.masterAgreements) {
+                                formData.compositeProfile.legalAgreement.attributes.masterAgreements.forEach(item => {
                                     if (item.agreementId === newEntry.agreementId?.value) {
                                         exists = true;
                                         MessageBox.error('Validation Error', 'Agreement ID already exists. Please enter a unique Agreement ID.', 500);
                                     }
                                 });
                             }
-
+                
                             if (!exists) {
                                 const newAgreement = {
                                     lineOfBusiness: newEntry.lineOfBusiness?.value || '',
                                     agreementId: newEntry.agreementId?.value || '', 
                                     profileType: newEntry.agreementType?.value || '',
                                     legalEntityId: newEntry.legalEntityId?.value || '',
-                                    legalEntity: newEntry.legalEntity?.value || '',
-                                    status: 'Active',
-                                    createdAt: moment().format("YYYY-MM-DD HH:mm:ss.SSS"),
-                                    updatedAt: moment().format("YYYY-MM-DD HH:mm:ss.SSS"),
-                                    createdBy: this.props.userInfo?.username || 'system'
+                                    legalEntity: newEntry.legalEntity?.value || ''
                                 };
 
-                                const newProfile = {
-                                    profileId: newEntry.agreementId?.value || '',
-                                    lineOfBusiness: newEntry.lineOfBusiness?.value || '',
-                                    profileType: newEntry.agreementType?.value || '',
-                                    profileStatus: 'Active',
-                                    updatedBy: this.props.userInfo?.username || 'system',
-                                    updatedAt: moment().format("YYYY-MM-DD HH:mm:ss.SSS"),
-                                    createdBy: this.props.userInfo?.username || 'system',
-                                    version: "1",
-                                    legalEntityId: newEntry.legalEntityId?.value || '',
-                                    legalEntityName: newEntry.legalEntity?.value || ''
-                                };
-                                
                                 formData.compositeProfile.legalAgreement.attributes.masterAgreements.push(newAgreement);
                                 
-                                this.addToOriginalStructure(formData, newProfile, newEntry.agreementType?.value || 'ISDA');
+                                this.addToCrossMarginEntities(formData, newAgreement);
                                 
                                 this.toggleModal({ state: false });
                                 
@@ -130,6 +109,7 @@ class XMProfileFields extends Component {
                                     this.state.gridApi["masterAgreements"].setRowData(
                                         formData.compositeProfile.legalAgreement.attributes.masterAgreements
                                     );
+                                    this.gridBindEvents(this.state.gridApi["masterAgreements"]);
                                 }
                                 
                                 this.setState({ resetTable: false });
@@ -138,9 +118,21 @@ class XMProfileFields extends Component {
                     }
                 });
             },
+
             DELETE_SELECTED_MASTER_AGREEMENTS: () => {
-                this.deleteSelectedRows();
-            }
+                const selectedRows = this.state.selectedRows;
+                if (selectedRows.length === 0) {
+                    MessageBox.error('Selection Required', 'Please select at least one row to delete.', 500);
+                    return;
+                }
+
+                MessageBox.confirm('Confirm Delete', 
+                    `Are you sure you want to delete ${selectedRows.length} selected agreement(s)?`, 
+                    () => {
+                        this.deleteSelectedAgreements(selectedRows);
+                    }
+                );
+            },
         };
 
         autoBind(this);
@@ -166,7 +158,7 @@ class XMProfileFields extends Component {
                 },
                 {
                     title: "Submit",
-                    onclick: this.handleSubmit,
+                    onclick: this.props.onSubmit,
                     displayIf: this.isProfileNewOrActive.bind(this),
                 },
                 {
@@ -181,6 +173,107 @@ class XMProfileFields extends Component {
                 },
             ];
     }
+
+    addToCrossMarginEntities = (formData, newAgreement) => {
+        if (!formData.compositeProfile.legalAgreement.attributes.crossMarginEntities) {
+            return;
+        }
+
+        const crossMarginEntities = formData.compositeProfile.legalAgreement.attributes.crossMarginEntities.value;
+        
+        let counterPartyEntry = crossMarginEntities.find(entity => 
+            entity.counterParty && entity.counterParty.spn === formData.compositeProfile.legalAgreement.attributes.spn
+        );
+
+        if (!counterPartyEntry && crossMarginEntities.length > 0) {
+            counterPartyEntry = crossMarginEntities[0];
+        }
+
+        if (counterPartyEntry) {
+            let legalEntityEntry = counterPartyEntry.legalEntities.find(le => 
+                le.legalEntity && le.legalEntity.eci === newAgreement.legalEntityId
+            );
+
+            if (!legalEntityEntry && counterPartyEntry.legalEntities.length > 0) {
+                legalEntityEntry = counterPartyEntry.legalEntities[0];
+            }
+
+            if (legalEntityEntry) {
+                const lob = newAgreement.lineOfBusiness;
+                if (!legalEntityEntry.legalAgreementProfiles[lob]) {
+                    legalEntityEntry.legalAgreementProfiles[lob] = [];
+                }
+
+                const profileObject = {
+                    profileId: newAgreement.agreementId,
+                    lineOfBusiness: newAgreement.lineOfBusiness,
+                    profileType: newAgreement.profileType,
+                    profileStatus: "NEW",
+                    createdBy: this.props.userInfo?.userDetails?.principalId || "USER",
+                    createdDtm: moment().unix(),
+                    updatedDtm: moment().unix(),
+                    updatedBy: this.props.userInfo?.userDetails?.principalId || "USER",
+                    version: 1,
+                    attributes: null,
+                    approvedDtm: null,
+                    approvedBy: null,
+                    comments: null,
+                    activationDtm: null
+                };
+
+                legalEntityEntry.legalAgreementProfiles[lob].push(profileObject);
+            }
+        }
+    };
+
+    deleteSelectedAgreements = (selectedRows) => {
+        let formData = cloneObject(this.props.data || {});
+        
+        const agreementIdsToDelete = selectedRows.map(row => row.agreementId);
+        
+        if (formData.compositeProfile?.legalAgreement?.attributes?.masterAgreements) {
+            formData.compositeProfile.legalAgreement.attributes.masterAgreements = 
+                formData.compositeProfile.legalAgreement.attributes.masterAgreements.filter(
+                    agreement => !agreementIdsToDelete.includes(agreement.agreementId)
+                );
+        }
+
+        this.removeFromCrossMarginEntities(formData, agreementIdsToDelete);
+
+        if (this.state.gridApi["masterAgreements"]) {
+            this.state.gridApi["masterAgreements"].setRowData(
+                formData.compositeProfile.legalAgreement.attributes.masterAgreements
+            );
+            this.gridBindEvents(this.state.gridApi["masterAgreements"]);
+        }
+
+        this.setState({ selectedRows: [] });
+
+        if (this.props.onCustFormUpdate) {
+            this.props.onCustFormUpdate(formData);
+        }
+    };
+
+    removeFromCrossMarginEntities = (formData, agreementIdsToDelete) => {
+        const crossMarginEntities = formData.compositeProfile?.legalAgreement?.attributes?.crossMarginEntities?.value;
+        
+        if (!crossMarginEntities) return;
+
+        crossMarginEntities.forEach(entity => {
+            if (entity.legalEntities) {
+                entity.legalEntities.forEach(legalEntity => {
+                    if (legalEntity.legalAgreementProfiles) {
+                        Object.keys(legalEntity.legalAgreementProfiles).forEach(lob => {
+                            legalEntity.legalAgreementProfiles[lob] = 
+                                legalEntity.legalAgreementProfiles[lob].filter(
+                                    profile => !agreementIdsToDelete.includes(profile.profileId)
+                                );
+                        });
+                    }
+                });
+            }
+        });
+    };
 
     getPermission(props) {
         const profileReadOnly = props.data?.profileReadOnly || false;
@@ -234,17 +327,8 @@ class XMProfileFields extends Component {
         }
     }
 
-    componentDidUpdate(prevProps) {
-        if (prevProps.data !== this.props.data && this.props.data) {
-            if (this.state.gridApi["masterAgreements"]) {
-                const masterAgreements = this.props.data?.compositeProfile?.legalAgreement?.attributes?.masterAgreements || [];
-                this.state.gridApi["masterAgreements"].setRowData(masterAgreements);
-            }
-        }
-    }
-
     setup = (config) => {
-        let cloneData = cloneObject(this.props.data || {});
+        let cloneData = this.props.data || {};
         this.initializeProfileData(cloneData);
 
         let configSetupVar = configSetup({
@@ -299,12 +383,6 @@ class XMProfileFields extends Component {
             data.compositeProfile.legalAgreement.attributes.masterAgreements = [];
         }
 
-        if (!data.compositeProfile.legalAgreement.attributes.crossMarginEntities) {
-            data.compositeProfile.legalAgreement.attributes.crossMarginEntities = {
-                value: []
-            };
-        }
-
         if (data.compositeProfile?.legalAgreement?.attributes?.crossMarginEntities?.value) {
             if (data.compositeProfile.legalAgreement.attributes.crossMarginEntities.value[0]?.counterParty?.eci) {
                 data.compositeProfile.legalAgreement.attributes.eci = 
@@ -328,55 +406,15 @@ class XMProfileFields extends Component {
 
         this.setState({ gridApi }, () => {
             api.sizeColumnsToFit();
-            
-            if (refKey === "masterAgreements") {
-                api.addEventListener('selectionChanged', this.onSelectionChanged);
-            }
+            this.gridBindEvents({ api: gridApi[refKey] });
         });
     };
 
-    onSelectionChanged = () => {
-        const selectedNodes = this.state.gridApi["masterAgreements"]?.getSelectedNodes() || [];
-        const selectedRows = selectedNodes.map(node => node.data);
-        this.setState({ selectedRows });
-    };
-
-    deleteSelectedRows = () => {
-        const { selectedRows } = this.state;
-        
-        if (selectedRows.length === 0) {
-            MessageBox.info('No Selection', 'Please select one or more rows to delete.');
-            return;
-        }
-
-        if (window.confirm(`Are you sure you want to delete ${selectedRows.length} selected master agreement(s)?`)) {
-            let formData = cloneObject(this.props.data || {});
-            
-            if (formData.compositeProfile?.legalAgreement?.attributes?.masterAgreements) {
-                const currentAgreements = formData.compositeProfile.legalAgreement.attributes.masterAgreements;
-                const updatedAgreements = currentAgreements.filter(agreement => 
-                    !selectedRows.some(selectedRow => 
-                        JSON.stringify(agreement) === JSON.stringify(selectedRow)
-                    )
-                );
-                
-                formData.compositeProfile.legalAgreement.attributes.masterAgreements = updatedAgreements;
-                
-                selectedRows.forEach(selectedRow => {
-                    this.removeFromOriginalStructure(formData, selectedRow);
-                });
-                
-                if (this.props.onCustFormUpdate) {
-                    this.props.onCustFormUpdate(formData);
-                }
-                
-                if (this.state.gridApi["masterAgreements"]) {
-                    this.state.gridApi["masterAgreements"].setRowData(updatedAgreements);
-                }
-                
-                this.setState({ selectedRows: [] });
-            }
-        }
+    gridBindEvents = ({ api }) => {
+        api.addEventListener('selectionChanged', () => {
+            const selectedRows = api.getSelectedRows();
+            this.setState({ selectedRows });
+        });
     };
 
     isFormValid = (props) => {
@@ -391,21 +429,11 @@ class XMProfileFields extends Component {
         return mixinCheckGlobalConditions({ renderIf, _this: this });
     };
 
-   handleSubmit = () => {
-    const currentData = this.getCurrentFormData();
-    
-    if (this.props.onCustFormUpdate) {
-        this.props.onCustFormUpdate(currentData); 
-    }
-    
-    if (this.props.onSubmit) {
-        this.props.onSubmit();
-    }
-};
+    removeSelectedItem = (compInfo, params) => {
+    };
 
-
-    getCurrentFormData = () => {
-        return this.props.data || {};
+    removeItem = (compInfo, params) => {
+        return "";
     };
 
     render() {
@@ -418,7 +446,7 @@ class XMProfileFields extends Component {
             isFormValid,
         } = this;
 
-        const { ready, modal, config, permissions, selectedRows } = this.state;
+        const { ready, modal, config, permissions } = this.state;
         const { onFormUpdate, staticData } = this.props;
 
         let formData = this.props.data || {};
@@ -451,45 +479,17 @@ class XMProfileFields extends Component {
                                     key={i}
                                 >
                                     {!!header ? (
-                                        <div>
-                                            <Header
-                                                {...header}
-                                                bindedEvents={bindedEvents}
-                                                permissions={permissions}
-                                            />
-                                            {refKey === "masterAgreements" && !permissions.readonly && (
-                                                <div style={{ 
-                                                    marginTop: "10px", 
-                                                    marginBottom: "10px", 
-                                                    textAlign: "right",
-                                                    paddingRight: "10px" 
-                                                }}>
-                                                    <Button 
-                                                        variant="cta" 
-                                                        disabled={selectedRows.length === 0}
-                                                        onClick={this.deleteSelectedRows}
-                                                        style={{ 
-                                                            marginLeft: "10px"
-                                                        }}
-                                                    >
-                                                        Delete
-                                                    </Button>
-                                                </div>
-                                            )}
-                                        </div>
+                                        <Header
+                                            {...header}
+                                            bindedEvents={bindedEvents}
+                                            permissions={permissions}
+                                        />
                                     ) : null}
 
                                     {!!type && type === "form" ? (
                                         <FormBuilder
                                             data={data}
-                                            onFormUpdate={(updatedData) => {
-                                                if (onFormUpdate) {
-                                                    onFormUpdate(updatedData);
-                                                }
-                                                if (this.props.onCustFormUpdate) {
-                                                    this.props.onCustFormUpdate(updatedData);
-                                                }
-                                            }}
+                                            onFormUpdate={onFormUpdate}
                                             bindedEvents={bindedEvents}
                                             permissions={permissions}
                                             staticData={staticData}
@@ -499,28 +499,12 @@ class XMProfileFields extends Component {
                                     {!!type && type === "datatable" ? (
                                         <DataGrid
                                             suppressRowClickSelection={false}
-                                            rowSelection="multiple"
-                                            rowMultiSelectWithClick={true}
-                                            headerCheckboxSelection={true}
-                                            headerCheckboxSelectionFilteredOnly={true}
+                                            rowSelection={'multiple'}
                                             containerProps={{
                                                 style: { height: "200px" },
                                             }}
                                             rowStripes
-                                            columnDefs={columnDefs?.map(col => {
-                                                if (col.actions || col.headerName === "Actions") {
-                                                    return null;
-                                                }
-                                                if (col.field === "lineOfBusiness") {
-                                                    return {
-                                                        ...col,
-                                                        checkboxSelection: true,
-                                                        headerCheckboxSelection: true,
-                                                        width: 200
-                                                    };
-                                                }
-                                                return col;
-                                            }).filter(Boolean)}
+                                            columnDefs={columnDefs}
                                             rowClassRules={rowClassRules}
                                             rowData={traverseFormToBindValue({
                                                 formData,
@@ -607,6 +591,8 @@ class XMProfileFields extends Component {
                                             agreementCategory: agreementType,
                                             profileType: profile.profileType,
                                             legalEntityName: profile.lineOfBusiness,
+                                            legalEntityId: entity.legalEntity?.eci || '',
+                                            legalEntity: entity.legalEntity?.name || '',
                                             status: profile.profileStatus,
                                             updatedBy: profile.updatedBy,
                                             updatedAt: profile.updatedAt,
