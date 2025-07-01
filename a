@@ -490,30 +490,6 @@ class XMProfileFields extends Component {
                                                 bindedEvents={bindedEvents}
                                                 permissions={permissions}
                                             />
-                                            {/* Add Delete button next to Add button for master agreements table */}
-                                            {refKey === "masterAgreements" && !permissions.readonly && (
-                                                <div style={{ 
-                                                    marginTop: "-40px", 
-                                                    marginBottom: "10px", 
-                                                    textAlign: "right",
-                                                    paddingRight: "10px" 
-                                                }}>
-                                                    <Button 
-                                                        variant="outline" 
-                                                        disabled={selectedRows.length === 0}
-                                                        onClick={this.deleteSelectedRows}
-                                                        style={{ 
-                                                            marginLeft: "10px",
-                                                            backgroundColor: selectedRows.length > 0 ? "#dc3545" : "#f8f9fa",
-                                                            color: selectedRows.length > 0 ? "white" : "#6c757d",
-                                                            border: "1px solid #dc3545"
-                                                        }}
-                                                    >
-                                                        <Icon name="delete" style={{ marginRight: "5px" }} />
-                                                        Delete Selected ({selectedRows.length})
-                                                    </Button>
-                                                </div>
-                                            )}
                                         </div>
                                     ) : null}
 
