@@ -71,6 +71,7 @@ class XMProfileFields extends Component {
                         newEntry = tableEntryUpdate({ newdata, markSource: true });
                     },
                     onSave: () => {
+                        console.log('Saving new master agreement...');
                         this.setState({ resetTable: true }, () => {
                             let exists = false;
                             let formData = cloneObject(data);
