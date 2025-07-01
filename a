@@ -102,8 +102,23 @@ class XMProfileFields extends Component {
                                     updatedAt: moment().format("YYYY-MM-DD HH:mm:ss.SSS"),
                                     createdBy: this.props.userInfo?.username || 'system'
                                 };
+
+                                const newProfile = {
+                                    profileId: newEntry.agreementId?.value || '',
+                                    lineOfBusiness: newEntry.lineOfBusiness?.value || '',
+                                    profileType: newEntry.agreementType?.value || '',
+                                    profileStatus: 'Active',
+                                    updatedBy: this.props.userInfo?.username || 'system',
+                                    updatedAt: moment().format("YYYY-MM-DD HH:mm:ss.SSS"),
+                                    createdBy: this.props.userInfo?.username || 'system',
+                                    version: "1",
+                                    legalEntityId: newEntry.legalEntityId?.value || '',
+                                    legalEntityName: newEntry.legalEntity?.value || ''
+                                };
                                 
                                 formData.compositeProfile.legalAgreement.attributes.masterAgreements.push(newAgreement);
+                                
+                                this.addToOriginalStructure(formData, newProfile, newEntry.agreementType?.value || 'ISDA');
                                 
                                 this.toggleModal({ state: false });
                                 
@@ -284,6 +299,12 @@ class XMProfileFields extends Component {
             data.compositeProfile.legalAgreement.attributes.masterAgreements = [];
         }
 
+        if (!data.compositeProfile.legalAgreement.attributes.crossMarginEntities) {
+            data.compositeProfile.legalAgreement.attributes.crossMarginEntities = {
+                value: []
+            };
+        }
+
         if (data.compositeProfile?.legalAgreement?.attributes?.crossMarginEntities?.value) {
             if (data.compositeProfile.legalAgreement.attributes.crossMarginEntities.value[0]?.counterParty?.eci) {
                 data.compositeProfile.legalAgreement.attributes.eci = 
@@ -341,6 +362,10 @@ class XMProfileFields extends Component {
                 
                 formData.compositeProfile.legalAgreement.attributes.masterAgreements = updatedAgreements;
                 
+                selectedRows.forEach(selectedRow => {
+                    this.removeFromOriginalStructure(formData, selectedRow);
+                });
+                
                 if (this.props.onCustFormUpdate) {
                     this.props.onCustFormUpdate(formData);
                 }
@@ -366,11 +391,18 @@ class XMProfileFields extends Component {
         return mixinCheckGlobalConditions({ renderIf, _this: this });
     };
 
-    handleSubmit = () => {
-        if (this.props.onSubmit) {
-            this.props.onSubmit();
-        }
-    };
+   handleSubmit = () => {
+    const currentData = this.getCurrentFormData();
+    
+    if (this.props.onCustFormUpdate) {
+        this.props.onCustFormUpdate(currentData); 
+    }
+    
+    if (this.props.onSubmit) {
+        this.props.onSubmit();
+    }
+};
+
 
     getCurrentFormData = () => {
         return this.props.data || {};
@@ -427,7 +459,7 @@ class XMProfileFields extends Component {
                                             />
                                             {refKey === "masterAgreements" && !permissions.readonly && (
                                                 <div style={{ 
-                                                    marginTop: "-40px", 
+                                                    marginTop: "10px", 
                                                     marginBottom: "10px", 
                                                     textAlign: "right",
                                                     paddingRight: "10px" 
@@ -440,7 +472,6 @@ class XMProfileFields extends Component {
                                                             marginLeft: "10px"
                                                         }}
                                                     >
-                                                        <Icon name="delete" style={{ marginRight: "5px" }} />
                                                         Delete
                                                     </Button>
                                                 </div>
