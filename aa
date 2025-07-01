@@ -96,14 +96,7 @@
                         {
                             "title": "House Multiplier",
                             "bind": "compositeProfile.legalAgreement.attributes.houseMultiplier",
-                            "type": "dropdown",
-                            "options": [
-                                "ISDA",
-                                "PSA",
-                                "CLEARING",
-                                "GIMRA",
-                                "OTCIC"
-                            ]
+                            "type": "input"
                         }
                     ]
                 },
