@@ -135,6 +135,12 @@
                         "events": {
                             "onClick": "CREATE_NEW_MASTER_AGREEMENT"
                         }
+                    },
+                    {
+                        "title": "Delete Selected",
+                        "events": {
+                            "onClick": "DELETE_SELECTED_MASTER_AGREEMENTS"
+                        }
                     }
                 ]
             },
@@ -142,10 +148,17 @@
             "bind": "compositeProfile.legalAgreement.attributes.masterAgreements",
             "columnDefs": [
                 {
-                    "field": "lineOfBusiness",
-                    "headerName": "Line Of Business",
+                    "headerName": "",
                     "checkboxSelection": true,
                     "headerCheckboxSelection": true,
+                    "width": 50,
+                    "suppressMenu": true,
+                    "suppressSorting": true,
+                    "suppressFilter": true
+                },
+                {
+                    "field": "lineOfBusiness",
+                    "headerName": "Line Of Business",
                     "width": 200
                 },
                 {
