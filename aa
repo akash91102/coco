@@ -96,7 +96,14 @@
                         {
                             "title": "House Multiplier",
                             "bind": "compositeProfile.legalAgreement.attributes.houseMultiplier",
-                            "type": "input"
+                            "type": "dropdown",
+                            "options": [
+                                "ISDA",
+                                "PSA",
+                                "CLEARING",
+                                "GIMRA",
+                                "OTCIC"
+                            ]
                         }
                     ]
                 },
@@ -128,12 +135,6 @@
                         "events": {
                             "onClick": "CREATE_NEW_MASTER_AGREEMENT"
                         }
-                    },
-                    {
-                        "title": "Delete Selected",
-                        "events": {
-                            "onClick": "DELETE_SELECTED_MASTER_AGREEMENTS"
-                        }
                     }
                 ]
             },
@@ -141,17 +142,10 @@
             "bind": "compositeProfile.legalAgreement.attributes.masterAgreements",
             "columnDefs": [
                 {
-                    "headerName": "",
-                    "checkboxSelection": true,
-                    "headerCheckboxSelection": true,
-                    "width": 50,
-                    "suppressMenu": true,
-                    "suppressSorting": true,
-                    "suppressFilter": true
-                },
-                {
                     "field": "lineOfBusiness",
                     "headerName": "Line Of Business",
+                    "checkboxSelection": true,
+                    "headerCheckboxSelection": true,
                     "width": 200
                 },
                 {
