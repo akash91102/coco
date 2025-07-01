@@ -41,7 +41,7 @@ class XMProfileFields extends Component {
             toggleState: true,
             ready: true,
             gridApi: {},
-            selectedRows: [], // Track selected rows for deletion
+            selectedRows: [],
             modal: {
                 disabled: null,
                 show: false,
@@ -71,22 +71,16 @@ class XMProfileFields extends Component {
                         newEntry = tableEntryUpdate({ newdata, markSource: true });
                     },
                     onSave: () => {
-                        console.group('💾 Adding New Master Agreement');
-                        console.log('New entry data:', newEntry);
-                        
                         this.setState({ resetTable: true }, () => {
                             let exists = false;
                             let formData = cloneObject(data);
                             
                             if (!formData.compositeProfile?.legalAgreement?.attributes?.masterAgreements) {
-                                console.log('Initializing master agreements array');
                                 this.initializeProfileData(formData);
                             }
 
                             const currentAgreements = formData.compositeProfile.legalAgreement.attributes.masterAgreements;
-                            console.log('Current agreements before adding:', currentAgreements);
 
-                            // Check for duplicate Agreement IDs
                             if (currentAgreements) {
                                 currentAgreements.forEach(item => {
                                     if (item.agreementId === newEntry.agreementId?.value) {
@@ -97,51 +91,34 @@ class XMProfileFields extends Component {
                             }
 
                             if (!exists) {
-                                // Transform the form data into the expected table format
                                 const newAgreement = {
                                     lineOfBusiness: newEntry.lineOfBusiness?.value || '',
                                     agreementId: newEntry.agreementId?.value || '', 
                                     profileType: newEntry.agreementType?.value || '',
                                     legalEntityId: newEntry.legalEntityId?.value || '',
                                     legalEntity: newEntry.legalEntity?.value || '',
-                                    // Add additional fields for API payload
                                     status: 'Active',
                                     createdAt: moment().format("YYYY-MM-DD HH:mm:ss.SSS"),
                                     updatedAt: moment().format("YYYY-MM-DD HH:mm:ss.SSS"),
                                     createdBy: this.props.userInfo?.username || 'system'
                                 };
-
-                                console.log('New agreement to add:', newAgreement);
                                 
                                 formData.compositeProfile.legalAgreement.attributes.masterAgreements.push(newAgreement);
                                 
-                                console.log('Updated agreements array:', 
-                                    formData.compositeProfile.legalAgreement.attributes.masterAgreements);
-                                
                                 this.toggleModal({ state: false });
                                 
-                                // Update parent component with new data
                                 if (this.props.onCustFormUpdate) {
-                                    console.log('Calling onCustFormUpdate with updated data');
                                     this.props.onCustFormUpdate(formData);
-                                } else {
-                                    console.warn('⚠️ onCustFormUpdate prop not provided');
                                 }
                                 
-                                // Refresh the grid
                                 if (this.state.gridApi["masterAgreements"]) {
-                                    console.log('Refreshing grid with new data');
                                     this.state.gridApi["masterAgreements"].setRowData(
                                         formData.compositeProfile.legalAgreement.attributes.masterAgreements
                                     );
-                                } else {
-                                    console.warn('⚠️ Grid API not available for refresh');
                                 }
                                 
                                 this.setState({ resetTable: false });
                             }
-                            
-                            console.groupEnd();
                         });
                     }
                 });
@@ -222,7 +199,6 @@ class XMProfileFields extends Component {
             const config = fetchConfig(this.props.appState?.lob || "xm");
             this.setup(config);
         } catch (error) {
-            console.error("Error loading XM config:", error);
             const fallbackConfig = {
                 layout: [
                     {
@@ -243,9 +219,7 @@ class XMProfileFields extends Component {
     }
 
     componentDidUpdate(prevProps) {
-        // Ensure data consistency when props change
         if (prevProps.data !== this.props.data && this.props.data) {
-            // Refresh grid if data has changed
             if (this.state.gridApi["masterAgreements"]) {
                 const masterAgreements = this.props.data?.compositeProfile?.legalAgreement?.attributes?.masterAgreements || [];
                 this.state.gridApi["masterAgreements"].setRowData(masterAgreements);
@@ -309,7 +283,6 @@ class XMProfileFields extends Component {
             data.compositeProfile.legalAgreement.attributes.masterAgreements = [];
         }
 
-        // Process existing data if available
         if (data.compositeProfile?.legalAgreement?.attributes?.crossMarginEntities?.value) {
             if (data.compositeProfile.legalAgreement.attributes.crossMarginEntities.value[0]?.counterParty?.eci) {
                 data.compositeProfile.legalAgreement.attributes.eci = 
@@ -334,7 +307,6 @@ class XMProfileFields extends Component {
         this.setState({ gridApi }, () => {
             api.sizeColumnsToFit();
             
-            // Set up selection change listener for multiple row selection
             if (refKey === "masterAgreements") {
                 api.addEventListener('selectionChanged', this.onSelectionChanged);
             }
@@ -345,7 +317,6 @@ class XMProfileFields extends Component {
         const selectedNodes = this.state.gridApi["masterAgreements"]?.getSelectedNodes() || [];
         const selectedRows = selectedNodes.map(node => node.data);
         this.setState({ selectedRows });
-        console.log('Selected rows:', selectedRows);
     };
 
     deleteSelectedRows = () => {
@@ -357,12 +328,9 @@ class XMProfileFields extends Component {
         }
 
         if (window.confirm(`Are you sure you want to delete ${selectedRows.length} selected master agreement(s)?`)) {
-            console.log('Deleting selected rows:', selectedRows);
-            
             let formData = cloneObject(this.props.data || {});
             
             if (formData.compositeProfile?.legalAgreement?.attributes?.masterAgreements) {
-                // Filter out selected rows
                 const currentAgreements = formData.compositeProfile.legalAgreement.attributes.masterAgreements;
                 const updatedAgreements = currentAgreements.filter(agreement => 
                     !selectedRows.some(selectedRow => 
@@ -372,20 +340,15 @@ class XMProfileFields extends Component {
                 
                 formData.compositeProfile.legalAgreement.attributes.masterAgreements = updatedAgreements;
                 
-                // Update parent component
                 if (this.props.onCustFormUpdate) {
                     this.props.onCustFormUpdate(formData);
                 }
                 
-                // Refresh the grid
                 if (this.state.gridApi["masterAgreements"]) {
                     this.state.gridApi["masterAgreements"].setRowData(updatedAgreements);
                 }
                 
-                // Clear selection
                 this.setState({ selectedRows: [] });
-                
-                console.log(`Deleted ${selectedRows.length} master agreements`);
             }
         }
     };
@@ -402,40 +365,12 @@ class XMProfileFields extends Component {
         return mixinCheckGlobalConditions({ renderIf, _this: this });
     };
 
-    // Enhanced submit handler with proper payload logging
     handleSubmit = () => {
-        console.group('🚀 Submit Process Debug');
-        
-        const currentData = this.props.data || {};
-        const masterAgreements = currentData?.compositeProfile?.legalAgreement?.attributes?.masterAgreements;
-        
-        console.log('1. Current form data being submitted:', currentData);
-        console.log('2. Master agreements count:', masterAgreements ? masterAgreements.length : 0);
-        console.log('3. Master agreements data:', masterAgreements);
-        
-        // Validate data structure
-        if (!currentData.compositeProfile) {
-            console.error('❌ Missing compositeProfile in data');
-        }
-        
-        if (!masterAgreements || masterAgreements.length === 0) {
-            console.warn('⚠️ No master agreements found in data structure');
-        } else {
-            console.log('✅ Master agreements found:', masterAgreements.length);
-            masterAgreements.forEach((agreement, index) => {
-                console.log(`Agreement ${index + 1}:`, agreement);
-            });
-        }
-        
-        console.groupEnd();
-        
-        // Call the actual submit if provided
         if (this.props.onSubmit) {
             this.props.onSubmit();
         }
     };
 
-    // Method to get current form data for submission
     getCurrentFormData = () => {
         return this.props.data || {};
     };
@@ -512,19 +447,18 @@ class XMProfileFields extends Component {
 
                                     {!!type && type === "datatable" ? (
                                         <DataGrid
-                                            suppressRowClickSelection={false} // Enable row selection
-                                            rowSelection="multiple" // Enable multiple row selection
-                                            rowMultiSelectWithClick={true} // Allow multiple selection with click
-                                            headerCheckboxSelection={true} // Show header checkbox
-                                            headerCheckboxSelectionFilteredOnly={true} // Only for filtered rows
+                                            suppressRowClickSelection={false}
+                                            rowSelection="multiple"
+                                            rowMultiSelectWithClick={true}
+                                            headerCheckboxSelection={true}
+                                            headerCheckboxSelectionFilteredOnly={true}
                                             containerProps={{
                                                 style: { height: "200px" },
                                             }}
                                             rowStripes
                                             columnDefs={columnDefs?.map(col => {
-                                                // Remove actions column and enable checkbox selection on first column
                                                 if (col.actions || col.headerName === "Actions") {
-                                                    return null; // Remove actions column
+                                                    return null;
                                                 }
                                                 if (col.field === "lineOfBusiness") {
                                                     return {
@@ -535,7 +469,7 @@ class XMProfileFields extends Component {
                                                     };
                                                 }
                                                 return col;
-                                            }).filter(Boolean)} // Remove null entries
+                                            }).filter(Boolean)}
                                             rowClassRules={rowClassRules}
                                             rowData={traverseFormToBindValue({
                                                 formData,
@@ -551,7 +485,6 @@ class XMProfileFields extends Component {
                             ) : null;
                         })}
 
-                        {/* Modal for adding new master agreement */}
                         <Dialog
                             onEntered={() => {}}
                             open={modal.show}
