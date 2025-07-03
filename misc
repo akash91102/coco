@@ -1,0 +1,135 @@
+CREATE_NEW_MASTER_AGREEMENT: () => {
+    const data = this.props.data || this.props.profileData || {};
+    let newEntry = null;
+    
+    selectedRowIdx = null;
+    
+    this.toggleModal({
+        state: true,
+        header: { title: 'Add New Master Agreement' },
+        formdata: newFormBind({ formdata: this.state.config.create.newMasterAgreements }),
+        onUpdate: (newdata) => {
+            newEntry = tableEntryUpdate({ newdata, markSource: true });
+        },
+        onSave: async () => {
+            this.setState({ resetTable: true }, async () => {
+                try {
+                    // Prepare validation data
+                    const validationData = {
+                        lineOfBusiness: newEntry.lineOfBusiness?.value || '',
+                        agreementId: newEntry.agreementId?.value || '',
+                        profileType: newEntry.agreementType?.value || '',
+                        legalEntityId: newEntry.legalEntityId?.value || '',
+                        legalEntity: newEntry.legalEntity?.value || ''
+                    };
+
+                    // Validate required fields before API call
+                    if (!validationData.agreementId || !validationData.lineOfBusiness || !validationData.legalEntityId) {
+                        MessageBox.error('Validation Error', 'Please fill in all required fields before saving.', 500);
+                        this.setState({ resetTable: false });
+                        return;
+                    }
+
+                    // Show loading state
+                    this.setState({ modal: { ...this.state.modal, disabled: true } });
+
+                    // Call validation API
+                    const validationResult = await API.validateMasterAgreement(validationData, this.props.appState?.lob?.toUpperCase() || 'XM');
+
+                    // Hide loading state
+                    this.setState({ modal: { ...this.state.modal, disabled: false } });
+
+                    if (!validationResult.success) {
+                        MessageBox.error('Validation Failed', validationResult.reason || 'The master agreement data could not be validated. Please check your entries and try again.', 500);
+                        this.setState({ resetTable: false });
+                        return;
+                    }
+
+                    // Proceed with existing validation and save logic
+                    let exists = false;
+                    let formData = cloneObject(data);
+                    
+                    if (!formData.compositeProfile?.legalAgreement?.attributes?.masterAgreements) {
+                        this.initializeProfileData(formData);
+                    }
+
+                    const currentAgreements = formData.compositeProfile.legalAgreement.attributes.masterAgreements;
+
+                    if (currentAgreements) {
+                        currentAgreements.forEach(item => {
+                            if (item.agreementId === newEntry.agreementId?.value) {
+                                exists = true;
+                                MessageBox.error('Validation Error', 'Agreement ID already exists. Please enter a unique Agreement ID.', 500);
+                            }
+                        });
+                    }
+
+                    if (!exists) {
+                        const newAgreement = {
+                            lineOfBusiness: newEntry.lineOfBusiness?.value || '',
+                            agreementId: newEntry.agreementId?.value || '', 
+                            profileType: newEntry.agreementType?.value || '',
+                            legalEntityId: newEntry.legalEntityId?.value || '',
+                            legalEntity: newEntry.legalEntity?.value || '',
+                            status: newEntry.status?.value || 'LIVE',
+                            createdAt: moment().format("YYYY-MM-DD HH:mm:ss.SSS"),
+                            updatedAt: moment().format("YYYY-MM-DD HH:mm:ss.SSS"),
+                            createdBy: this.props.userInfo?.username || 'system'
+                        };
+                        
+                        formData.compositeProfile.legalAgreement.attributes.masterAgreements.push(newAgreement);
+                        
+                        this.toggleModal({ state: false });
+                        
+                        if (this.props.onCustFormUpdate) {
+                            this.props.onCustFormUpdate(formData);
+                        }
+                        
+                        if (this.gridApiRefs["masterAgreements"]) {
+                            this.gridApiRefs["masterAgreements"].setRowData(
+                                formData.compositeProfile.legalAgreement.attributes.masterAgreements
+                            );
+                        }
+                        
+                        MessageBox.alert('Success', 'Master agreement has been validated and added successfully.', 500);
+                        this.setState({ resetTable: false });
+                    } else {
+                        this.setState({ resetTable: false });
+                    }
+
+                } catch (error) {
+                    console.error('Validation error:', error);
+                    MessageBox.error('System Error', 'An unexpected error occurred during validation. Please try again.', 500);
+                    this.setState({ 
+                        resetTable: false,
+                        modal: { ...this.state.modal, disabled: false }
+                    });
+                }
+            });
+        }
+    });
+}
+
+
+
+
+
+static validateMasterAgreement(agreementData, lob) {
+    return new Promise(async (resolve) => {
+        try {
+            let searchPayload = {
+                lineOfBusiness: agreementData.lineOfBusiness,
+                agreementId: agreementData.agreementId,
+                legalEntityId: agreementData.legalEntityId,
+                profileType: agreementData.profileType,
+                legalEntity: agreementData.legalEntity
+            };
+
+            let res = await post(`rest/agr/ref-data/search`, searchPayload);
+            const {success, payload, reason} = res;
+            resolve({success, payload, reason});
+        } catch (err) {
+            resolve({success: false, status: err.status, reason: err.statusMessage || 'Validation failed'});
+        }
+    });
+}
