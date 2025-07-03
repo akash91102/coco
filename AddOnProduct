@@ -1,0 +1,73 @@
+import React, {Component, Fragment} from 'react';
+import {ColumnLayout, Checkbox} from '@jpmuitk/components';
+
+// Add this to your dropdownPresets configuration
+const ADD_ON_OPTIONS = ['LIQUIDITY', 'TENOR', '#3'];
+
+class AddOnProduct extends Component {
+    constructor(props){
+        super(props);
+    }
+    
+    handleChange = (addOnOption, event) => {
+        if(event){
+            let formData = Object.assign({}, this.props.formData),
+                compositeProfile = Object.assign({}, formData.compositeProfile),
+                legalAgreement = Object.assign({}, compositeProfile.legalAgreement),
+                attributes = Object.assign({}, legalAgreement.attributes),
+                addOn = Object.assign({}, attributes.addOn),
+                value = Object.assign([], addOn.value);
+
+            // Initialize addOn structure if it doesn't exist
+            if (!addOn.value) {
+                value = [];
+                addOn.source = "USER";
+            }
+
+            if(event.target.checked){
+                value.push(addOnOption);
+            } else {
+                let index = value.indexOf(addOnOption);
+                value.splice(index, 1);
+            }
+            
+            addOn.value = value;
+            attributes.addOn = addOn;
+            legalAgreement.attributes = attributes;
+            compositeProfile.legalAgreement = legalAgreement;
+            formData.compositeProfile = compositeProfile;
+
+            this.props.onCustFormUpdate(formData);
+        }
+    };
+
+    render() {
+        const {bind, refKey, formData} = this.props;
+        let obj = Object.assign({}, this.props.formData),
+            compositeProfile = Object.assign({}, obj.compositeProfile),
+            legalAgreement = Object.assign({}, compositeProfile.legalAgreement),
+            attributes = Object.assign({}, legalAgreement.attributes),
+            addOn = Object.assign({}, attributes.addOn),
+            value = addOn.value ? Object.assign([], addOn.value) : [];
+
+        return (
+            <Fragment>
+                <div width="100%">
+                    <ColumnLayout container item sm={12} md={12} lg={12} direction={'row'} spacing={24}
+                                  style={{marginTop:'1px',marginBottom:'4px',marginLeft:'4px', fontSize: '12px'}}>
+                        {ADD_ON_OPTIONS.map((addOnOption, index) => (
+                            <ColumnLayout item sm={1} md={1} lg={1} key={index}>
+                                    <Checkbox
+                                        label={addOnOption}
+                                        checked={value.indexOf(addOnOption) !== -1}
+                                        onChange={this.handleChange.bind(this, addOnOption)}/>
+                            </ColumnLayout>
+                        ))}
+                    </ColumnLayout>
+                </div>
+            </Fragment>
+        );
+    }
+}
+
+export default AddOnProduct;
