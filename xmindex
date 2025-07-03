@@ -266,21 +266,25 @@ class XMProfileFields extends Component {
         
         if (populatedFormData.data && populatedFormData.data[0] && populatedFormData.data[0].column) {
             populatedFormData.data[0].column.forEach(field => {
+                if (!field.value) {
+                    field.value = { source: 'USER', value: '' };
+                }
+                
                 switch(field.bind) {
                     case 'lineOfBusiness':
-                        field.value = { source: 'USER', value: rowData.lineOfBusiness || '' };
+                        field.value.value = rowData.lineOfBusiness || '';
                         break;
                     case 'agreementId':
-                        field.value = { source: 'USER', value: rowData.agreementId || '' };
+                        field.value.value = rowData.agreementId || '';
                         break;
                     case 'agreementType':
-                        field.value = { source: 'USER', value: rowData.profileType || '' };
+                        field.value.value = rowData.profileType || '';
                         break;
                     case 'legalEntityId':
-                        field.value = { source: 'USER', value: rowData.legalEntityId || '' };
+                        field.value.value = rowData.legalEntityId || '';
                         break;
                     case 'legalEntity':
-                        field.value = { source: 'USER', value: rowData.legalEntity || '' };
+                        field.value.value = rowData.legalEntity || '';
                         break;
                     default:
                         break;
