@@ -132,16 +132,19 @@ class XMProfileFields extends Component {
 
         let formData = newFormBind({ formdata: this.state.config.create.newMasterAgreements });
         
-        if (editMode && editingRowData) {
-            formData = this.prepopulateFormData(formData, editingRowData);
-        }
-        
         this.toggleModal({
             state: true,
             header: { title: editMode ? 'Edit Master Agreement' : 'Add New Master Agreement' },
             formdata: formData,
             onUpdate: (newdata) => {
                 newEntry = tableEntryUpdate({ newdata, markSource: true });
+            },
+            onModalOpened: () => {
+                if (editMode && editingRowData) {
+                    setTimeout(() => {
+                        this.populateEditForm(editingRowData);
+                    }, 100);
+                }
             },
             onSave: async () => {
                 this.setState({ resetTable: true }, async () => {
@@ -261,38 +264,18 @@ class XMProfileFields extends Component {
         });
     };
 
-    prepopulateFormData = (formData, rowData) => {
-        let populatedFormData = cloneObject(formData);
+    populateEditForm = (rowData) => {
+        const updateData = {
+            lineOfBusiness: { source: 'USER', value: rowData.lineOfBusiness || '' },
+            agreementId: { source: 'USER', value: rowData.agreementId || '' },
+            agreementType: { source: 'USER', value: rowData.profileType || '' },
+            legalEntityId: { source: 'USER', value: rowData.legalEntityId || '' },
+            legalEntity: { source: 'USER', value: rowData.legalEntity || '' }
+        };
         
-        if (populatedFormData.data && populatedFormData.data[0] && populatedFormData.data[0].column) {
-            populatedFormData.data[0].column.forEach(field => {
-                if (!field.value) {
-                    field.value = { source: 'USER', value: '' };
-                }
-                
-                switch(field.bind) {
-                    case 'lineOfBusiness':
-                        field.value.value = rowData.lineOfBusiness || '';
-                        break;
-                    case 'agreementId':
-                        field.value.value = rowData.agreementId || '';
-                        break;
-                    case 'agreementType':
-                        field.value.value = rowData.profileType || '';
-                        break;
-                    case 'legalEntityId':
-                        field.value.value = rowData.legalEntityId || '';
-                        break;
-                    case 'legalEntity':
-                        field.value.value = rowData.legalEntity || '';
-                        break;
-                    default:
-                        break;
-                }
-            });
+        if (this.state.modal.onUpdate) {
+            this.state.modal.onUpdate(updateData);
         }
-        
-        return populatedFormData;
     };
 
     getPermission(props) {
