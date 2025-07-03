@@ -318,6 +318,40 @@ class XMProfileFields extends Component {
         return profilePresent && status === "Inactive";
     }
 
+validateRequiredFields = () => {
+  const requiredFields = [];
+
+  const traverse = (dataArray) => {
+    dataArray?.forEach((row) => {
+      row?.column?.forEach((field) => {
+        if (field.required) {
+          requiredFields.push(field.bind);
+        }
+      });
+    });
+  };
+
+  const configLayout = this.state.config?.layout || [];
+
+  configLayout.forEach((section) => {
+    if (section.type === "form") {
+      traverse(section.data);
+    }
+  });
+
+  const formData = this.getCurrentFormData();
+
+  const isFieldValid = (path) => {
+    return path.split(".").reduce((acc, part) => acc && acc[part], formData);
+  };
+
+  return requiredFields.every((path) => {
+    const value = isFieldValid(path);
+    return value !== undefined && value !== null && value.toString().trim() !== "";
+  });
+};
+
+
     componentDidMount() {
         try {
             const config = fetchConfig(this.props.appState?.lob || "xm");
