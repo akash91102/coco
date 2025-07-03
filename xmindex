@@ -319,31 +319,36 @@ class XMProfileFields extends Component {
     }
 
 validateRequiredFields = () => {
+  const formData = this.getCurrentFormData();
+  const config = this.state?.config?.layout;
+
+  if (!config) return false;
+
   const requiredFields = [];
 
-  const traverse = (dataArray) => {
-    dataArray?.forEach((row) => {
-      row?.column?.forEach((field) => {
-        if (field.required) {
-          requiredFields.push(field.bind);
-        }
+  config.forEach((section) => {
+    if (section.type === "form" && Array.isArray(section.data)) {
+      section.data.forEach((row) => {
+        row.column?.forEach((field) => {
+          if (field.required && field.bind) {
+            requiredFields.push(field.bind);
+          }
+        });
       });
-    });
-  };
-
-  const configLayout = this.state.config?.layout || [];
-
-  configLayout.forEach((section) => {
-    if (section.type === "form") {
-      traverse(section.data);
     }
   });
-
-  const formData = this.getCurrentFormData();
 
   const isFieldValid = (path) => {
     return path.split(".").reduce((acc, part) => acc && acc[part], formData);
   };
+
+  const allValid = requiredFields.every((path) => {
+    const value = isFieldValid(path);
+    return value !== undefined && value !== null && value.toString().trim() !== "";
+  });
+
+  return allValid;
+};
 
   return requiredFields.every((path) => {
     const value = isFieldValid(path);
